@@ -97,6 +97,17 @@ class HalamanTest extends TestCase
             ->assertSessionHasErrors('alokasi_tanah');
     }
 
+    public function test_pengaturan_menerima_koma_desimal(): void
+    {
+        // Sebelumnya kolom bertipe number membuang koma: 17,34 tersimpan 1734
+        $this->put(route('proyek.update'), array_merge($this->pengaturanForm(), ['luas_lahan_are' => '17,34', 'komisi_default_persen' => '2,5']))
+            ->assertSessionHasNoErrors();
+        Pengaturan::lupakan();
+        $this->assertEquals(17.34, Pengaturan::get('luas_lahan_are'));
+        $this->assertEquals(2.5, Pengaturan::get('komisi_default_persen'));
+        $this->get(route('proyek.index'))->assertOk();
+    }
+
     public function test_konsumen_dengan_transaksi_tidak_bisa_dihapus(): void
     {
         $t = $this->transaksiBaru();

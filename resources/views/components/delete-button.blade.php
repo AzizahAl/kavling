@@ -1,10 +1,11 @@
-@props(['action', 'message' => 'Data yang dihapus tidak dapat dikembalikan.', 'title' => 'Hapus data ini?', 'label' => null])
-<form method="POST" action="{{ $action }}" class="inline"
-      data-confirm="{{ $message }}" data-confirm-title="{{ $title }}" data-confirm-ok="Ya, hapus">
+@props(['action', 'message' => 'Data yang dihapus tidak bisa dikembalikan.', 'title' => 'Hapus data ini?', 'label' => null, 'ok' => 'Hapus'])
+{{-- Tombol hapus dengan dialog konfirmasi seragam (bukan dialog bawaan browser). --}}
+<form method="POST" action="{{ $action }}" class="inline-flex"
+      data-confirm="{{ $message }}" data-confirm-title="{{ $title }}" data-confirm-ok="{{ $ok }}">
     @csrf @method('DELETE')
     @if ($label)
-        <button type="submit" {{ $attributes->merge(['class' => 'btn btn-danger']) }}><x-icon name="trash" class="h-4 w-4"/>{{ $label }}</button>
+        <x-button type="submit" variant="danger" icon="trash" {{ $attributes }}>{{ $label }}</x-button>
     @else
-        <button type="submit" {{ $attributes->merge(['class' => 'btn-icon btn-icon-danger']) }} title="Hapus" aria-label="Hapus"><x-icon name="trash" class="h-[18px] w-[18px]"/></button>
+        <x-icon-button type="submit" icon="trash" label="Hapus" variant="danger" {{ $attributes }}/>
     @endif
 </form>

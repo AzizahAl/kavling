@@ -6,91 +6,135 @@
 @source '../../app/**/*.php';
 @source '../**/*.blade.php';
 @source '../**/*.js';
-@source '../../public/js/**/*.js';
 
-@custom-variant dark (&:where(.dark, .dark *));
-
+/* =====================================================================
+   TOKEN DESAIN — satu-satunya tempat warna, huruf, radius, bayangan, gerak.
+   ===================================================================== */
 @theme {
     --font-sans: 'Inter Variable', 'Inter', ui-sans-serif, system-ui, sans-serif;
 
-    /* Palet utama TR-DMS: forest (hijau tua) & gold */
-    --color-forest-50: #eef6f1;
-    --color-forest-100: #d6eadd;
-    --color-forest-200: #aed4bd;
-    --color-forest-300: #7fb898;
-    --color-forest-400: #4f9772;
-    --color-forest-500: #2f7a55;
-    --color-forest-600: #225f42;
-    --color-forest-700: #1a4028;
-    --color-forest-800: #123420;
-    --color-forest-900: #0f2418;
-    --color-forest-950: #09170f;
+    /* Warna utama: hijau zamrud #2E8B62 (brand-500).
+       Kontras teks putih: 500 = 4,2:1 (aksen/teks besar), 600 = 5,2:1 (tombol), 800 = 8,2:1 (sidebar). */
+    --color-brand-50: #eef8f3;
+    --color-brand-100: #d6efe3;
+    --color-brand-200: #aedec7;
+    --color-brand-300: #7ec7a5;
+    --color-brand-400: #50ab83;
+    --color-brand-500: #2e8b62;
+    --color-brand-600: #277a56;
+    --color-brand-700: #216649;
+    --color-brand-800: #1a5a3f;
+    --color-brand-900: #164a34;
+    --color-brand-950: #0d2e20;
 
-    --color-gold-50: #fdf8ec;
-    --color-gold-100: #faedcc;
-    --color-gold-200: #f4d994;
-    --color-gold-300: #efc86a;
-    --color-gold-400: #eabf5a;
-    --color-gold-500: #e8b74d;
-    --color-gold-600: #cf9a2f;
-    --color-gold-700: #a87624;
-    --color-gold-800: #85591f;
+    /* Radius */
+    --radius-kontrol: 0.625rem;   /* tombol, input */
+    --radius-kartu: 0.875rem;     /* kartu, tabel */
+    --radius-popup: 1rem;         /* popup, menu */
+
+    /* Bayangan */
+    --shadow-kartu: 0 1px 2px rgb(15 23 42 / 0.04), 0 1px 3px rgb(15 23 42 / 0.05);
+    --shadow-menu: 0 12px 32px -8px rgb(15 23 42 / 0.18), 0 0 0 1px rgb(15 23 42 / 0.06);
+    --shadow-popup: 0 24px 48px -12px rgb(15 23 42 / 0.28);
+
+    /* Gerak */
+    --ease-halus: cubic-bezier(0.2, 0.8, 0.2, 1);
+    --animate-masuk: masuk 160ms var(--ease-halus);
 }
+
+@keyframes masuk {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: none; }
+}
+
+@keyframes habis {
+    from { transform: scaleX(1); }
+    to { transform: scaleX(0); }
+}
+
+@custom-variant sentuh (@media (pointer: coarse));
 
 @layer base {
     html { -webkit-tap-highlight-color: transparent; }
-    body { @apply bg-slate-50 text-slate-800 antialiased; }
+    body { @apply bg-slate-50 text-[15px] text-slate-800 antialiased sm:text-sm; }
     [x-cloak] { display: none !important; }
-    input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
+    :focus-visible { outline: 2px solid var(--color-brand-500); outline-offset: 2px; }
+    ::selection { background: var(--color-brand-100); }
+    input[type='date']::-webkit-calendar-picker-indicator,
+    input[type='month']::-webkit-calendar-picker-indicator { cursor: pointer; opacity: 0.55; }
+}
+
+/* Gerak dimatikan bila perangkat meminta gerakan dikurangi */
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
 }
 
 @layer components {
     /* ---------- Tombol ---------- */
     .btn {
-        @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium whitespace-nowrap
-               transition focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed;
+        @apply inline-flex h-10 items-center justify-center gap-2 rounded-kontrol px-4 text-sm font-medium whitespace-nowrap
+               transition-colors duration-150 select-none
+               focus-visible:outline-2 focus-visible:outline-offset-2
+               disabled:pointer-events-none disabled:opacity-50;
     }
-    .btn-sm { @apply px-3 py-1.5 text-xs; }
-    .btn-primary { @apply bg-forest-800 text-white hover:bg-forest-700 focus-visible:ring-forest-500; }
-    .btn-gold { @apply bg-gold-500 text-forest-900 hover:bg-gold-400 focus-visible:ring-gold-500; }
-    .btn-secondary { @apply border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 focus-visible:ring-slate-400; }
-    .btn-danger { @apply bg-red-600 text-white hover:bg-red-700 focus-visible:ring-red-500; }
-    .btn-ghost { @apply text-slate-600 hover:bg-slate-100 focus-visible:ring-slate-400; }
+    .btn-sm { @apply h-8 gap-1.5 px-3 text-[13px] sentuh:h-10; }
+    .btn-primary { @apply bg-brand-600 text-white shadow-kartu hover:bg-brand-700 active:bg-brand-800 focus-visible:outline-brand-500; }
+    .btn-secondary { @apply border border-slate-300 bg-white text-slate-700 shadow-kartu hover:border-slate-400 hover:bg-slate-50 active:bg-slate-100; }
+    .btn-neutral { @apply bg-slate-100 text-slate-700 hover:bg-slate-200 active:bg-slate-300; }
+    .btn-danger { @apply bg-red-600 text-white shadow-kartu hover:bg-red-700 active:bg-red-800 focus-visible:outline-red-500; }
+    .btn-ghost { @apply text-slate-600 hover:bg-slate-100 hover:text-slate-900; }
     .btn-icon {
-        @apply inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 transition
-               hover:bg-slate-100 hover:text-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-forest-500;
+        @apply inline-flex size-9 shrink-0 items-center justify-center rounded-kontrol text-slate-500 transition-colors duration-150
+               hover:bg-slate-100 hover:text-slate-900 active:bg-slate-200 sentuh:size-10;
     }
     .btn-icon-danger { @apply hover:bg-red-50 hover:text-red-600; }
+    .tautan { @apply font-medium text-brand-700 underline-offset-2 hover:text-brand-800 hover:underline; }
 
     /* ---------- Form ---------- */
-    .form-label { @apply mb-1.5 block text-sm font-medium text-slate-700; }
+    .form-label { @apply mb-1.5 block text-[13px] font-medium text-slate-700; }
     .form-input {
-        @apply block w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 placeholder:text-slate-400
-               transition focus:border-forest-500 focus:ring-2 focus:ring-forest-500/20 focus:outline-none
-               disabled:bg-slate-100 disabled:text-slate-500 read-only:bg-slate-50 read-only:text-slate-600;
+        @apply block h-10 w-full rounded-kontrol border border-slate-300 bg-white px-3 text-[15px] text-slate-900 shadow-kartu
+               transition-colors duration-150 placeholder:text-slate-400 sm:text-sm
+               hover:border-slate-400
+               focus:border-brand-500 focus:ring-3 focus:ring-brand-500/15 focus:outline-none
+               disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500
+               read-only:bg-slate-50 read-only:text-slate-600;
     }
-    .form-input.is-invalid { @apply border-red-400 focus:border-red-500 focus:ring-red-500/20; }
-    .form-hint { @apply mt-1 text-xs text-slate-500; }
-    .form-error { @apply mt-1 text-xs font-medium text-red-600; }
+    textarea.form-input { @apply h-auto py-2.5; }
+    .form-input.is-invalid, .is-invalid .form-input { @apply border-red-500 hover:border-red-500 focus:border-red-500 focus:ring-red-500/15; }
+    .form-hint { @apply mt-1.5 text-xs text-slate-500; }
+    .form-error { @apply mt-1.5 flex items-start gap-1 text-xs font-medium text-red-600; }
+    .wajib::after { content: ' *'; @apply text-red-500; }
 
-    /* ---------- Kartu & tabel ---------- */
-    .card { @apply rounded-xl border border-slate-200 bg-white shadow-xs; }
-    .card-header { @apply flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4; }
-    .card-title { @apply text-base font-semibold text-slate-900; }
-    .card-body { @apply p-5; }
+    /* ---------- Kartu ---------- */
+    .card { @apply min-w-0 rounded-kartu border border-slate-200 bg-white shadow-kartu; }
+    .card-header { @apply flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 py-3.5 sm:px-5; }
+    .card-title { @apply text-[15px] font-semibold text-slate-900; }
+    .card-body { @apply p-4 sm:p-5; }
 
-    .table-wrap { @apply w-full overflow-x-auto; }
+    /* ---------- Tabel ---------- */
+    .table-wrap { @apply w-full overflow-x-auto overscroll-x-contain; }
     .table { @apply w-full min-w-full text-left text-sm; }
-    .table thead th {
-        @apply bg-slate-50 px-4 py-3 text-xs font-semibold tracking-wide whitespace-nowrap text-slate-500 uppercase;
-    }
+    .table thead th { @apply border-b border-slate-200 bg-slate-50/80 px-4 py-2.5 text-xs font-medium whitespace-nowrap text-slate-500; }
     .table tbody td { @apply px-4 py-3 align-middle whitespace-nowrap text-slate-700; }
     .table td.wrap { @apply whitespace-normal; }
-    .table tbody tr { @apply border-t border-slate-100 transition-colors hover:bg-slate-50/70; }
-    .table tfoot td { @apply border-t border-slate-200 bg-slate-50 px-4 py-3 font-semibold text-slate-800; }
+    .table tbody tr { @apply border-b border-slate-100 transition-colors duration-150 last:border-0 hover:bg-slate-50; }
+    .table tfoot td { @apply border-t border-slate-200 bg-slate-50 px-4 py-3 font-semibold whitespace-nowrap text-slate-900; }
 
-    .badge { @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium whitespace-nowrap; }
+    /* ---------- Badge ---------- */
+    .badge { @apply inline-flex h-6 items-center gap-1 rounded-full px-2.5 text-xs font-medium whitespace-nowrap; }
+
+    /* ---------- Tooltip ---------- */
+    .tip {
+        @apply pointer-events-none fixed z-[80] max-w-56 rounded-md bg-slate-900 px-2 py-1 text-xs font-medium text-white shadow-menu
+               transition-opacity duration-150;
+    }
 }
 
-.scrollbar-thin::-webkit-scrollbar { width: 6px; height: 6px; }
-.scrollbar-thin::-webkit-scrollbar-thumb { background: rgb(255 255 255 / .15); border-radius: 3px; }
+.scrollbar-tipis::-webkit-scrollbar { width: 6px; height: 6px; }
+.scrollbar-tipis::-webkit-scrollbar-thumb { background: rgb(255 255 255 / 0.2); border-radius: 3px; }

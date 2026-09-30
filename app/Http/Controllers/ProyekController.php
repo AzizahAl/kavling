@@ -24,6 +24,12 @@ class ProyekController extends Controller
 
     public function update(Request $request, HargaService $harga)
     {
+        // Kolom desimal/persen boleh diketik dengan koma (17,34) → ubah ke titik sebelum divalidasi.
+        // Sebelumnya kolom ini bertipe number sehingga browser membuang koma: 17,34 tersimpan 1734.
+        $desimal = collect(Pengaturan::DEFINISI)->filter(fn ($d) => in_array($d[2], ['desimal', 'persen']))->keys();
+        $request->merge($desimal->filter(fn ($k) => $request->filled($k))
+            ->mapWithKeys(fn ($k) => [$k => str_replace([' ', ','], ['', '.'], (string) $request->input($k))])->all());
+
         $aturan = [];
         foreach (Pengaturan::DEFINISI as $kunci => [, , $tipe]) {
             $aturan[$kunci] = match ($tipe) {

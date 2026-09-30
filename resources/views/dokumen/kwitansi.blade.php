@@ -20,19 +20,19 @@
             position: sticky; top: 0; z-index: 10;
             display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
             padding: 10px 16px;
-            background: #111827;
+            background: #1a5a3f;
             font-family: Arial, Helvetica, sans-serif;
         }
         .toolbar .judul { color: #fff; font-size: 14px; font-weight: 600; margin-right: auto; }
         .btn {
             display: inline-flex; align-items: center; gap: 6px;
-            padding: 8px 14px; border-radius: 8px; border: 1px solid #4b5563;
+            padding: 8px 14px; border-radius: 8px; border: 1px solid rgba(255,255,255,.35);
             background: transparent; color: #fff; font-size: 13px; font-weight: 600;
             text-decoration: none; cursor: pointer;
         }
-        .btn:hover { background: #1f2937; }
-        .btn-utama { background: #fff; color: #111827; border-color: #fff; }
-        .btn-utama:hover { background: #e5e7eb; }
+        .btn:hover { background: rgba(255,255,255,.1); }
+        .btn-utama { background: #fff; color: #1a5a3f; border-color: #fff; }
+        .btn-utama:hover { background: #eef8f3; }
 
         /* ===== Kertas A4 ===== */
         .paper {

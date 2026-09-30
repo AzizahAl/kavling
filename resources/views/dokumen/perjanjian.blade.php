@@ -15,10 +15,11 @@
     <style>
         * { box-sizing: border-box; }
         body { margin: 0; background: #e5e7eb; font-family: 'Times New Roman', Times, serif; font-size: 12pt; line-height: 1.5; color: #000; }
-        .toolbar { position: sticky; top: 0; z-index: 10; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; padding: 10px 16px; background: #0f2418; font-family: Arial, sans-serif; }
+        .toolbar { position: sticky; top: 0; z-index: 10; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; padding: 10px 16px; background: #1a5a3f; font-family: Arial, sans-serif; }
         .toolbar .judul { color: #fff; font-size: 14px; font-weight: 600; margin-right: auto; }
-        .btn { display: inline-flex; padding: 8px 14px; border-radius: 8px; border: 1px solid #4f9772; background: transparent; color: #fff; font-size: 13px; font-weight: 600; text-decoration: none; cursor: pointer; }
-        .btn-utama { background: #e8b74d; color: #0f2418; border-color: #e8b74d; }
+        .btn { display: inline-flex; padding: 8px 14px; border-radius: 8px; border: 1px solid rgba(255,255,255,.35); background: transparent; color: #fff; font-size: 13px; font-weight: 600; text-decoration: none; cursor: pointer; }
+        .btn:hover { background: rgba(255,255,255,.1); }
+        .btn-utama { background: #fff; color: #1a5a3f; border-color: #fff; }
         .peringatan { max-width: 210mm; margin: 12px auto 0; padding: 10px 14px; background: #fef3c7; border: 1px solid #fcd34d; border-radius: 8px; font-family: Arial, sans-serif; font-size: 13px; color: #92400e; }
         .paper { width: 210mm; min-height: 297mm; margin: 20px auto; padding: 20mm 22mm; background: #fff; box-shadow: 0 2px 12px rgba(0,0,0,.2); }
         h1 { font-size: 14pt; text-align: center; margin: 0; text-decoration: underline; }

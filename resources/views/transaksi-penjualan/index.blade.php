@@ -1,78 +1,88 @@
 @extends('layouts.app')
-@section('title', 'Transaksi Penjualan')
+@section('title', 'Transaksi')
+
+@php
+    $tabs = [['Semua', request()->fullUrlWithQuery(['status' => null, 'page' => null]), ! request('status'), $stats['per_status']->sum()]];
+    foreach (\App\Models\TransaksiPenjualan::STATUS as $s) {
+        $tabs[] = [\App\Support\Status::label($s), request()->fullUrlWithQuery(['status' => $s, 'page' => null]), request('status') === $s, $stats['per_status'][$s] ?? 0];
+    }
+@endphp
 
 @section('content')
-<x-page-header title="Transaksi Penjualan" subtitle="Total bayar & sisa dihitung otomatis dari pembayaran."
-               :breadcrumbs="['Penjualan' => null, 'Transaksi Penjualan' => null]">
+<x-page-header title="Transaksi" subtitle="Total bayar & sisa dihitung dari pembayaran." :breadcrumbs="['Penjualan' => null, 'Transaksi' => null]">
     <x-slot:actions>
-        <a href="{{ route('transaksi-penjualan.create') }}" class="btn btn-primary"><x-icon name="plus" class="h-4 w-4"/> Transaksi Baru</a>
+        <x-button icon="plus" :href="route('transaksi-penjualan.create')">Transaksi Baru</x-button>
     </x-slot:actions>
 </x-page-header>
 
-<div class="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4 sm:gap-4">
-    <x-stat-card label="Transaksi Aktif" :value="$stats['aktif']" :hint="($stats['per_status']['lunas'] ?? 0) . ' lunas · ' . ($stats['per_status']['batal'] ?? 0) . ' batal'" tone="dark" icon="cart"/>
-    <x-stat-card label="Nilai Penjualan" :value="rupiah_singkat($stats['nilai_jual'])" :hint="rupiah($stats['nilai_jual'])" icon="tag"/>
-    <x-stat-card label="Pokok Terbayar" :value="rupiah_singkat($stats['terbayar'])" :hint="rupiah($stats['terbayar'])" icon="check-circle"/>
-    <x-stat-card label="Piutang" :value="rupiah_singkat($stats['piutang'])" :hint="rupiah($stats['piutang'])" tone="gold" icon="wallet"/>
+<div class="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+    <x-stat-card label="Transaksi Aktif" :value="$stats['aktif']" :hint="($stats['per_status']['lunas'] ?? 0) . ' lunas · ' . ($stats['per_status']['batal'] ?? 0) . ' batal'" tone="utama" icon="cart"/>
+    <x-stat-card label="Nilai Penjualan" :value="rupiah($stats['nilai_jual'])" :singkat="rupiah_singkat($stats['nilai_jual'])" icon="tag"/>
+    <x-stat-card label="Terbayar" :value="rupiah($stats['terbayar'])" :singkat="rupiah_singkat($stats['terbayar'])" icon="check-circle"/>
+    <x-stat-card label="Piutang" :value="rupiah($stats['piutang'])" :singkat="rupiah_singkat($stats['piutang'])" icon="wallet"/>
 </div>
 
-<div class="mb-4 flex gap-2 overflow-x-auto pb-1">
-    @php $semua = collect(\App\Models\TransaksiPenjualan::STATUS); @endphp
-    <a href="{{ request()->fullUrlWithQuery(['status' => null, 'page' => null]) }}" @class(['btn btn-sm', 'btn-primary' => ! request('status'), 'btn-secondary' => request('status')])>Semua</a>
-    @foreach ($semua as $s)
-        <a href="{{ request()->fullUrlWithQuery(['status' => $s, 'page' => null]) }}" @class(['btn btn-sm', 'btn-primary' => request('status') === $s, 'btn-secondary' => request('status') !== $s])>
-            {{ \App\Support\Status::label($s) }} <span class="opacity-60">{{ $stats['per_status'][$s] ?? 0 }}</span>
-        </a>
-    @endforeach
-</div>
+<x-tabs :items="$tabs"/>
 
 <div class="card">
-    <x-filter-bar placeholder="Cari ID, konsumen, atau kavling…">
+    <x-filter-bar placeholder="Cari ID, konsumen, kavling…" :abaikan="['status']">
         @if (request('status'))<input type="hidden" name="status" value="{{ request('status') }}">@endif
-        <x-select name="jenis" :options="['cash' => 'Cash', 'angsuran' => 'Angsuran']" :value="request('jenis')" placeholder="Semua metode" class="sm:w-40"/>
-        <x-select name="agen" :options="$agens" :value="request('agen')" placeholder="Semua agen" class="sm:w-44"/>
-        <input type="month" name="bulan" value="{{ request('bulan') }}" class="form-input col-span-2 sm:w-44" title="Bulan transaksi">
+        <x-select name="jenis" :options="['cash' => 'Cash', 'angsuran' => 'Angsuran']" :value="request('jenis')" placeholder="Semua metode"/>
+        <x-select name="agen" :options="$agens" :value="request('agen')" placeholder="Semua agen"/>
+        <x-input type="month" name="bulan" :value="request('bulan')" aria-label="Bulan transaksi"/>
     </x-filter-bar>
 
     @if ($transaksis->isEmpty())
-        <x-empty-state title="Belum ada transaksi" message="{{ request()->query() ? 'Tidak ada transaksi yang cocok dengan filter.' : 'Mulai dengan membuat transaksi penjualan pertama.' }}">
-            <a href="{{ route('transaksi-penjualan.create') }}" class="btn btn-primary"><x-icon name="plus" class="h-4 w-4"/> Transaksi Baru</a>
+        <x-empty-state title="Belum ada transaksi" :message="request()->query() ? 'Ubah atau hapus filter.' : null">
+            <x-button icon="plus" :href="route('transaksi-penjualan.create')">Transaksi Baru</x-button>
         </x-empty-state>
     @else
-        <div class="table-wrap">
+        <div class="table-wrap max-md:hidden">
             <table class="table">
-                <thead>
-                    <tr><th>ID / Tanggal</th><th>Konsumen</th><th>Kavling</th><th>Metode</th><th class="text-right">Harga Jual</th><th class="text-right">Terbayar</th><th class="text-right">Sisa</th><th>Status</th><th></th></tr>
-                </thead>
+                <thead><tr><th>Transaksi</th><th>Konsumen</th><th>Kavling</th><th>Metode</th><th class="text-right">Harga Jual</th><th class="text-right">Terbayar</th><th class="text-right">Sisa</th><th>Status</th><th class="w-px"></th></tr></thead>
                 <tbody>
                     @foreach ($transaksis as $t)
                         <tr>
-                            <td>
-                                <a href="{{ route('transaksi-penjualan.show', $t) }}" class="font-semibold text-forest-700 hover:underline">{{ $t->kode_transaksi }}</a>
-                                <div class="text-xs text-slate-500">{{ tanggal($t->tanggal) }}</div>
-                            </td>
-                            <td>
-                                <span class="font-medium text-slate-900">{{ $t->konsumen->nama_lengkap }}</span>
-                                <div class="text-xs text-slate-500">{{ $t->agen ? 'Agen ' . $t->agen->nama_agen : 'Tanpa agen' }}</div>
-                            </td>
-                            <td class="font-medium">{{ $t->kavling->kode_kavling }}</td>
-                            <td class="whitespace-nowrap">{{ $t->isAngsuran() ? "Angsuran {$t->tenor} bln" : 'Cash' }}</td>
+                            <td><a href="{{ route('transaksi-penjualan.show', $t) }}" class="tautan">{{ $t->kode_transaksi }}</a><div class="text-xs text-slate-500">{{ tanggal($t->tanggal) }}</div></td>
+                            <td><span class="font-medium text-slate-900">{{ $t->konsumen->nama_lengkap }}</span><div class="text-xs text-slate-500">{{ $t->agen->nama_agen ?? 'Tanpa agen' }}</div></td>
+                            <td class="font-medium text-slate-900">{{ $t->kavling->kode_kavling }}</td>
+                            <td>{{ $t->isAngsuran() ? "Angsuran {$t->tenor} bln" : 'Cash' }}</td>
                             <td class="text-right tabular-nums">{{ rupiah($t->nilai_jual) }}</td>
                             <td class="text-right tabular-nums">
                                 {{ rupiah($t->pokokTerbayar()) }}
-                                @unless ($t->isBatal())
-                                    <div class="mt-1 ml-auto h-1 w-20 overflow-hidden rounded-full bg-slate-100"><div class="h-full bg-forest-500" style="width: {{ $t->persenLunas() }}%"></div></div>
-                                @endunless
+                                @unless ($t->isBatal())<div class="mt-1 ml-auto h-1 w-20 overflow-hidden rounded-full bg-slate-100"><div class="h-full rounded-full bg-brand-500" style="width: {{ $t->persenLunas() }}%"></div></div>@endunless
                             </td>
                             <td class="text-right tabular-nums">{{ $t->isBatal() ? '—' : rupiah($t->sisa()) }}</td>
                             <td><x-badge :status="$t->status"/></td>
-                            <td class="text-right"><a href="{{ route('transaksi-penjualan.show', $t) }}" class="btn-icon" title="Detail"><x-icon name="chevron-right"/></a></td>
+                            <td><x-icon-button icon="chevron-right" label="Detail" :href="route('transaksi-penjualan.show', $t)"/></td>
                         </tr>
                     @endforeach
                 </tbody>
             </table>
         </div>
-        @if ($transaksis->hasPages())<div class="border-t border-slate-100 px-4 py-3">{{ $transaksis->links() }}</div>@endif
+
+        <ul class="divide-y divide-slate-100 md:hidden">
+            @foreach ($transaksis as $t)
+                <li>
+                    <a href="{{ route('transaksi-penjualan.show', $t) }}" class="flex items-start gap-3 px-4 py-3.5 transition-colors active:bg-slate-50">
+                        <div class="min-w-0 flex-1">
+                            <div class="flex items-center gap-2">
+                                <span class="truncate font-medium text-slate-900">{{ $t->konsumen->nama_lengkap }}</span>
+                                <x-badge :status="$t->status"/>
+                            </div>
+                            <p class="mt-0.5 text-xs text-slate-500">{{ $t->kavling->kode_kavling }} · {{ $t->kode_transaksi }} · {{ tanggal($t->tanggal) }}</p>
+                            <div class="mt-2 flex items-center justify-between gap-3 text-xs">
+                                <span class="text-slate-500">Sisa <span class="font-semibold text-slate-900 tabular-nums">{{ $t->isBatal() ? '—' : rupiah($t->sisa()) }}</span></span>
+                                <span class="tabular-nums text-slate-500">{{ angka($t->persenLunas()) }}% dari {{ rupiah_singkat($t->nilai_jual) }}</span>
+                            </div>
+                            @unless ($t->isBatal())<div class="mt-1.5 h-1 overflow-hidden rounded-full bg-slate-100"><div class="h-full rounded-full bg-brand-500" style="width: {{ $t->persenLunas() }}%"></div></div>@endunless
+                        </div>
+                        <x-icon name="chevron-right" class="mt-1 size-4 text-slate-400"/>
+                    </a>
+                </li>
+            @endforeach
+        </ul>
+        {{ $transaksis->links() }}
     @endif
 </div>
 @endsection

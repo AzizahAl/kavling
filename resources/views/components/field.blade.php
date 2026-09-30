@@ -1,12 +1,16 @@
 @props(['label' => null, 'name' => null, 'hint' => null, 'required' => false, 'for' => null])
-{{-- Pembungkus label + input + pesan error. Input diletakkan di slot. --}}
-<div {{ $attributes }}>
+{{-- Label + isian + pesan error tepat di bawah isian. Tanda wajib (*) seragam. --}}
+@php
+    $kunci = $name ? str_replace(['[', ']'], ['.', ''], $name) : null;
+    $salah = $kunci && $errors->has($kunci);
+@endphp
+<div {{ $attributes->class(['min-w-0', 'is-invalid' => $salah]) }}>
     @if ($label)
-        <label for="{{ $for ?? $name }}" class="form-label">{{ $label }}@if ($required)<span class="text-red-500"> *</span>@endif</label>
+        <label for="{{ $for ?? $name }}" @class(['form-label', 'wajib' => $required])>{{ $label }}</label>
     @endif
     {{ $slot }}
-    @if ($name && $errors->has($name))
-        <p class="form-error">{{ $errors->first($name) }}</p>
+    @if ($salah)
+        <p class="form-error" role="alert"><x-icon name="alert" class="mt-px size-3.5"/>{{ $errors->first($kunci) }}</p>
     @elseif ($hint)
         <p class="form-hint">{{ $hint }}</p>
     @endif

@@ -15,6 +15,7 @@ class KavlingController extends Controller
         $kavlings = Kavling::with(['tahap', 'transaksiAktif' => fn ($q) => $q->with('konsumen', 'agen')->denganRingkasan()])
             ->when($request->filled('status'), fn ($q) => $q->where('status', $request->status))
             ->when($request->filled('blok'), fn ($q) => $q->where('blok', $request->blok))
+            ->when($request->filled('tipe'), fn ($q) => $q->where('tipe', $request->tipe))
             ->when($request->filled('cari'), fn ($q) => $q->where(fn ($w) => $w
                 ->where('kode_kavling', 'like', "%{$request->cari}%")
                 ->orWhere('tipe', 'like', "%{$request->cari}%")))
