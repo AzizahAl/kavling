@@ -1,11 +1,96 @@
+@import '@fontsource-variable/inter';
 @import 'tailwindcss';
 
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 @source '../../storage/framework/views/*.php';
+@source '../../app/**/*.php';
 @source '../**/*.blade.php';
 @source '../**/*.js';
+@source '../../public/js/**/*.js';
+
+@custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
-    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
-        'Segoe UI Symbol', 'Noto Color Emoji';
+    --font-sans: 'Inter Variable', 'Inter', ui-sans-serif, system-ui, sans-serif;
+
+    /* Palet utama TR-DMS: forest (hijau tua) & gold */
+    --color-forest-50: #eef6f1;
+    --color-forest-100: #d6eadd;
+    --color-forest-200: #aed4bd;
+    --color-forest-300: #7fb898;
+    --color-forest-400: #4f9772;
+    --color-forest-500: #2f7a55;
+    --color-forest-600: #225f42;
+    --color-forest-700: #1a4028;
+    --color-forest-800: #123420;
+    --color-forest-900: #0f2418;
+    --color-forest-950: #09170f;
+
+    --color-gold-50: #fdf8ec;
+    --color-gold-100: #faedcc;
+    --color-gold-200: #f4d994;
+    --color-gold-300: #efc86a;
+    --color-gold-400: #eabf5a;
+    --color-gold-500: #e8b74d;
+    --color-gold-600: #cf9a2f;
+    --color-gold-700: #a87624;
+    --color-gold-800: #85591f;
 }
+
+@layer base {
+    html { -webkit-tap-highlight-color: transparent; }
+    body { @apply bg-slate-50 text-slate-800 antialiased; }
+    [x-cloak] { display: none !important; }
+    input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
+}
+
+@layer components {
+    /* ---------- Tombol ---------- */
+    .btn {
+        @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium whitespace-nowrap
+               transition focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed;
+    }
+    .btn-sm { @apply px-3 py-1.5 text-xs; }
+    .btn-primary { @apply bg-forest-800 text-white hover:bg-forest-700 focus-visible:ring-forest-500; }
+    .btn-gold { @apply bg-gold-500 text-forest-900 hover:bg-gold-400 focus-visible:ring-gold-500; }
+    .btn-secondary { @apply border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 focus-visible:ring-slate-400; }
+    .btn-danger { @apply bg-red-600 text-white hover:bg-red-700 focus-visible:ring-red-500; }
+    .btn-ghost { @apply text-slate-600 hover:bg-slate-100 focus-visible:ring-slate-400; }
+    .btn-icon {
+        @apply inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 transition
+               hover:bg-slate-100 hover:text-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-forest-500;
+    }
+    .btn-icon-danger { @apply hover:bg-red-50 hover:text-red-600; }
+
+    /* ---------- Form ---------- */
+    .form-label { @apply mb-1.5 block text-sm font-medium text-slate-700; }
+    .form-input {
+        @apply block w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 placeholder:text-slate-400
+               transition focus:border-forest-500 focus:ring-2 focus:ring-forest-500/20 focus:outline-none
+               disabled:bg-slate-100 disabled:text-slate-500 read-only:bg-slate-50 read-only:text-slate-600;
+    }
+    .form-input.is-invalid { @apply border-red-400 focus:border-red-500 focus:ring-red-500/20; }
+    .form-hint { @apply mt-1 text-xs text-slate-500; }
+    .form-error { @apply mt-1 text-xs font-medium text-red-600; }
+
+    /* ---------- Kartu & tabel ---------- */
+    .card { @apply rounded-xl border border-slate-200 bg-white shadow-xs; }
+    .card-header { @apply flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4; }
+    .card-title { @apply text-base font-semibold text-slate-900; }
+    .card-body { @apply p-5; }
+
+    .table-wrap { @apply w-full overflow-x-auto; }
+    .table { @apply w-full min-w-full text-left text-sm; }
+    .table thead th {
+        @apply bg-slate-50 px-4 py-3 text-xs font-semibold tracking-wide whitespace-nowrap text-slate-500 uppercase;
+    }
+    .table tbody td { @apply px-4 py-3 align-middle whitespace-nowrap text-slate-700; }
+    .table td.wrap { @apply whitespace-normal; }
+    .table tbody tr { @apply border-t border-slate-100 transition-colors hover:bg-slate-50/70; }
+    .table tfoot td { @apply border-t border-slate-200 bg-slate-50 px-4 py-3 font-semibold text-slate-800; }
+
+    .badge { @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium whitespace-nowrap; }
+}
+
+.scrollbar-thin::-webkit-scrollbar { width: 6px; height: 6px; }
+.scrollbar-thin::-webkit-scrollbar-thumb { background: rgb(255 255 255 / .15); border-radius: 3px; }

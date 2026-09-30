@@ -86,8 +86,9 @@
     @unless($pdf)
         <div class="toolbar no-print">
             <span class="judul">Kwitansi {{ $k['noKwitansi'] }}</span>
-            <a href="{{ route('konsumen.show', $konsumen) }}" class="btn">&larr; Kembali</a>
-            <a href="{{ route('konsumen.kwitansi.unduh', [$konsumen, $riwayat]) }}" class="btn btn-utama">Unduh PDF</a>
+            <a href="{{ $k['kembali'] }}" class="btn">&larr; Kembali</a>
+            <button type="button" onclick="window.print()" class="btn">Cetak</button>
+            <a href="{{ route('pembayaran.kwitansi.unduh', $p) }}" class="btn btn-utama">Unduh PDF</a>
         </div>
     @endunless
 
@@ -141,6 +142,11 @@
                 <td>Sejumlah uang</td>
                 <td>:</td>
                 <td class="abu">{{ $k['terbilang'] }}</td>
+            </tr>
+            <tr>
+                <td>Metode</td>
+                <td>:</td>
+                <td>{{ $k['metode'] }}</td>
             </tr>
         </table>
 

@@ -1,261 +1,171 @@
 @extends('layouts.app')
+@section('title', 'Master Kavling')
+
+@php
+    $kosong = ['id' => null, 'blok' => '', 'nomor' => '', 'tipe' => 'Prima', 'ukuran' => '', 'luas' => '', 'catatan' => '', 'terkunci' => false];
+    $awal = old('_form') === 'kavling'
+        ? ['id' => old('_id'), 'blok' => old('blok'), 'nomor' => old('nomor'), 'tipe' => old('tipe'), 'ukuran' => old('ukuran'), 'luas' => old('luas'), 'catatan' => old('catatan'), 'terkunci' => (bool) old('_terkunci')]
+        : $kosong;
+@endphp
 
 @section('content')
-<div class="p-6">
+<div x-data="{
+        form: @js($awal),
+        kosong: @js($kosong),
+        harga: {{ $hargaAktif }},
+        get action() { return this.form.id ? '{{ url('master-kavling') }}/' + this.form.id : '{{ route('kavling.store') }}' },
+        get estimasi() { return (Number(this.form.luas) || 0) * this.harga },
+        tambah() { this.form = { ...this.kosong }; $dispatch('open-modal', 'kavling') },
+        ubah(k) { this.form = { ...k }; $dispatch('open-modal', 'kavling') },
+     }">
 
-    <p class="text-sm text-gray-500 mb-1">Data Master &gt; <span class="text-gray-800 font-medium">Master Kavling</span></p>
-    <h1 class="text-2xl font-bold text-gray-900">Master Kavling</h1>
-    <p class="text-gray-500 mb-6">Kelola data kavling, harga, ukuran, dan status ketersediaan kavling proyek.</p>
+    <x-page-header title="Master Kavling" subtitle="Data kavling, status, dan harga jual. Status berubah otomatis mengikuti transaksi."
+                   :breadcrumbs="['Data Master' => null, 'Master Kavling' => null]">
+        <x-slot:actions>
+            <button type="button" class="btn btn-primary" x-on:click="tambah()"><x-icon name="plus" class="h-4 w-4"/> Tambah Kavling</button>
+        </x-slot:actions>
+    </x-page-header>
 
-    @if(session('success'))
-        <div class="mb-4 rounded-lg bg-gray-50 border border-gray-200 text-gray-700 px-4 py-3 text-sm">
-            {{ session('success') }}
-        </div>
-    @endif
-
-    {{-- Stat Cards --}}
-    <div class="grid grid-cols-2 md:grid-cols-6 gap-4 mb-6">
-        <div class="bg-white rounded-xl border border-gray-200 p-4">
-            <p class="text-xs text-gray-500 uppercase tracking-wide">Total Kavling</p>
-            <p class="text-2xl font-bold text-gray-900 mt-1">{{ $stats['total'] }}</p>
-            <p class="text-xs text-gray-400">Kavling</p>
-        </div>
-        <div class="bg-white rounded-xl border border-gray-200 p-4">
-            <p class="text-xs text-gray-500 uppercase tracking-wide">Tersedia</p>
-            <p class="text-2xl font-bold text-gray-900 mt-1">{{ $stats['tersedia'] }}</p>
-            <p class="text-xs text-gray-400">Kavling</p>
-        </div>
-        <div class="bg-white rounded-xl border border-gray-200 p-4">
-            <p class="text-xs text-gray-500 uppercase tracking-wide">Reservasi</p>
-            <p class="text-2xl font-bold text-gray-900 mt-1">{{ $stats['reservasi'] }}</p>
-            <p class="text-xs text-gray-400">Kavling</p>
-        </div>
-        <div class="bg-white rounded-xl border border-gray-200 p-4">
-            <p class="text-xs text-gray-500 uppercase tracking-wide">Booking</p>
-            <p class="text-2xl font-bold text-gray-900 mt-1">{{ $stats['booking'] }}</p>
-            <p class="text-xs text-gray-400">Kavling</p>
-        </div>
-        <div class="bg-white rounded-xl border border-gray-200 p-4">
-            <p class="text-xs text-gray-500 uppercase tracking-wide">DP</p>
-            <p class="text-2xl font-bold text-gray-900 mt-1">{{ $stats['dp'] }}</p>
-            <p class="text-xs text-gray-400">Kavling</p>
-        </div>
-        <div class="bg-gray-900 rounded-xl border border-gray-900 p-4">
-            <p class="text-xs text-gray-300 uppercase tracking-wide">Terjual</p>
-            <p class="text-2xl font-bold text-white mt-1">{{ $stats['terjual'] }}</p>
-            <p class="text-xs text-gray-400">Kavling</p>
-        </div>
+    <div class="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6 sm:gap-4">
+        <x-stat-card label="Total Kavling" :value="$total" tone="dark" icon="grid"/>
+        @foreach (\App\Models\Kavling::STATUS as $s)
+            <a href="{{ route('kavling.index', ['status' => $s]) }}" class="block transition hover:-translate-y-0.5">
+                <x-stat-card :label="$s === 'dp' ? 'DP / Angsuran' : \App\Support\Status::label($s)" :value="$jumlah[$s] ?? 0"
+                             :class="request('status') === $s ? 'ring-2 ring-forest-500' : ''"/>
+            </a>
+        @endforeach
     </div>
 
-    {{-- Info Tahap Berlaku --}}
-    <p class="text-sm text-gray-500 mb-3">
-        Tahap berlaku: <strong class="text-gray-800">{{ $tahapAktif->nama_tahap ?? '-' }}</strong>
-        — Rp{{ number_format($hargaAktif, 0, ',', '.') }}/m²
-    </p>
+    <div class="mb-6 flex flex-col gap-3 rounded-xl border border-gold-200 bg-gold-50 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
+        <div class="flex items-center gap-3">
+            <div class="flex h-9 w-9 items-center justify-center rounded-lg bg-gold-100 text-gold-700"><x-icon name="tag"/></div>
+            <p class="text-gold-800">Harga aktif <span class="font-semibold">{{ $tahapAktif?->nama_tahap }}</span>:
+                <span class="font-bold text-slate-900">{{ rupiah($hargaAktif) }}/m²</span>. Kavling yang sudah bertransaksi memakai harga terkunci.</p>
+        </div>
+        <a href="{{ route('skema-harga.index') }}" class="btn btn-sm btn-secondary">Lihat skema harga</a>
+    </div>
 
-    {{-- Toolbar --}}
-    <form method="GET" action="{{ route('kavling.index') }}" class="flex flex-wrap items-center gap-3 mb-4">
-        <button type="button" onclick="openTambahKavlingModal()"
-           class="bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-800">
-            + Tambah Kavling
-        </button>
+    <div class="card">
+        <x-filter-bar placeholder="Cari kode atau tipe…">
+            <x-select name="blok" :options="$bloks->mapWithKeys(fn ($b) => [$b => 'Blok ' . $b])" :value="request('blok')" placeholder="Semua blok" class="sm:w-36"/>
+            <x-select name="status" :options="collect(\App\Models\Kavling::STATUS)->mapWithKeys(fn ($s) => [$s => $s === 'dp' ? 'DP / Angsuran' : \App\Support\Status::label($s)])" :value="request('status')" placeholder="Semua status" class="sm:w-44"/>
+        </x-filter-bar>
 
-        <select name="status" onchange="this.form.submit()"
-                class="border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-700">
-            <option value="">Filter Status</option>
-            <option value="tersedia" {{ request('status') == 'tersedia' ? 'selected' : '' }}>Tersedia</option>
-            <option value="reservasi" {{ request('status') == 'reservasi' ? 'selected' : '' }}>Reservasi</option>
-            <option value="booking" {{ request('status') == 'booking' ? 'selected' : '' }}>Booking</option>
-            <option value="dp" {{ request('status') == 'dp' ? 'selected' : '' }}>DP</option>
-            <option value="terjual" {{ request('status') == 'terjual' ? 'selected' : '' }}>Terjual</option>
-        </select>
-
-        <select name="blok" onchange="this.form.submit()"
-                class="border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-700">
-            <option value="">Filter Blok</option>
-            @foreach($bloks as $blok)
-                <option value="{{ $blok }}" {{ request('blok') == $blok ? 'selected' : '' }}>{{ $blok }}</option>
-            @endforeach
-        </select>
-
-        @if(request('status') || request('blok'))
-            <a href="{{ route('kavling.index') }}" class="text-sm text-gray-500 hover:text-gray-800 font-medium">Reset Filter</a>
-        @endif
-
-        <span class="ml-auto text-sm text-gray-500">Menampilkan {{ $kavlings->count() }} kavling</span>
-    </form>
-
-    {{-- Tabel --}}
-    <div class="bg-white rounded-xl border border-gray-200 overflow-x-auto">
-        <table class="min-w-full text-sm">
-            <thead class="bg-gray-50 text-gray-500 uppercase text-xs border-b border-gray-200">
-                <tr>
-                    <th class="px-4 py-3 text-left font-medium">Kode Kavling</th>
-                    <th class="px-4 py-3 text-left font-medium">Blok</th>
-                    <th class="px-4 py-3 text-left font-medium">No</th>
-                    <th class="px-4 py-3 text-left font-medium">Tipe</th>
-                    <th class="px-4 py-3 text-left font-medium">Ukuran</th>
-                    <th class="px-4 py-3 text-left font-medium">Luas m²</th>
-                    <th class="px-4 py-3 text-left font-medium">Tahap</th>
-                    <th class="px-4 py-3 text-left font-medium">Harga/m²</th>
-                    <th class="px-4 py-3 text-left font-medium">Harga Jual</th>
-                    <th class="px-4 py-3 text-left font-medium">Status</th>
-                    <th class="px-4 py-3 text-left font-medium">Aksi</th>
-                </tr>
-            </thead>
-            <tbody class="divide-y divide-gray-100">
-                @forelse($kavlings as $kavling)
-                    <tr class="hover:bg-gray-50">
-                        <td class="px-4 py-3 font-medium text-gray-900">{{ $kavling->kode_kavling }}</td>
-                        <td class="px-4 py-3 text-gray-600">{{ $kavling->blok }}</td>
-                        <td class="px-4 py-3 text-gray-600">{{ $kavling->no }}</td>
-                        <td class="px-4 py-3 text-gray-600">{{ $kavling->tipe }}</td>
-                        <td class="px-4 py-3 text-gray-600">{{ $kavling->ukuran }}</td>
-                        <td class="px-4 py-3 text-gray-600">{{ number_format($kavling->luas, 0, ',', '.') }}</td>
-                        <td class="px-4 py-3 text-gray-600">{{ $kavling->tahap->nama_tahap ?? '-' }}</td>
-                        <td class="px-4 py-3 text-gray-600">Rp{{ number_format($kavling->harga_per_m2, 0, ',', '.') }}</td>
-                        <td class="px-4 py-3 text-gray-900 font-medium">Rp{{ number_format($kavling->harga_jual, 0, ',', '.') }}</td>
-                        <td class="px-4 py-3">
+        @if ($kavlings->isEmpty())
+            <x-empty-state title="Tidak ada kavling" message="Tidak ada kavling yang cocok dengan filter."/>
+        @else
+            <div class="table-wrap">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Kode</th><th>Tipe</th><th>Ukuran</th><th class="text-right">Luas</th>
+                            <th class="text-right">Harga / m²</th><th class="text-right">Harga Jual</th>
+                            <th>Status</th><th>Pembeli</th><th class="text-right">Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach ($kavlings as $k)
                             @php
-                                $badge = [
-                                    'tersedia'  => 'bg-[#E8F5E9] text-[#2E7D32]',
-                                    'reservasi' => 'bg-[#E8F0FE] text-[#356AE6]',
-                                    'booking'   => 'bg-[#FFF4E5] text-[#B76E00]',
-                                    'dp'        => 'bg-[#FFF8D9] text-[#9A7B00]',
-                                    'terjual'   => 'bg-[#FDECEC] text-[#C94A4A]',
-                                ][$kavling->status] ?? 'bg-gray-100 text-gray-700';
+                                $t = $k->transaksiAktif;
+                                $hargaM2 = $t ? $t->harga_per_m2 : $k->harga_per_m2;
+                                $hargaJual = $t ? $t->nilai_jual : $k->harga_jual;
+                                $dataForm = ['id' => $k->id, 'blok' => $k->blok, 'nomor' => (int) substr($k->no, strlen($k->blok)), 'tipe' => $k->tipe, 'ukuran' => $k->ukuran, 'luas' => $k->luas ? (float) $k->luas : '', 'catatan' => $k->catatan, 'terkunci' => (bool) $t];
                             @endphp
-                            <span class="px-2.5 py-1 rounded-full text-xs font-medium {{ $badge }}">
-                                {{ ucfirst($kavling->status) }}
-                            </span>
-                        </td>
-                        <td class="px-4 py-3">
-                            <div class="flex items-center gap-3">
-                                <button type="button" onclick="openEditKavlingModal({{ $kavling->id }})" title="Edit"
-                                        class="text-gray-400 hover:text-gray-900 transition">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-                                    </svg>
-                                </button>
-                                <form action="{{ route('kavling.destroy', $kavling) }}" method="POST"
-                                      onsubmit="return confirm('Yakin hapus kavling ini?')">
-                                    @csrf
-                                    @method('DELETE')
-                                    <button type="submit" title="Hapus"
-                                            class="text-gray-400 hover:text-red-600 transition">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                            <polyline points="3 6 5 6 21 6"></polyline>
-                                            <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path>
-                                            <path d="M10 11v6"></path>
-                                            <path d="M14 11v6"></path>
-                                            <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path>
-                                        </svg>
-                                    </button>
-                                </form>
-                            </div>
-                        </td>
-                    </tr>
-                @empty
-                    <tr>
-                        <td colspan="11" class="px-4 py-8 text-center text-gray-400">Belum ada data kavling.</td>
-                    </tr>
-                @endforelse
-            </tbody>
-        </table>
-    </div>
-
-    {{-- Modal Tambah Kavling --}}
-    <div id="tambahKavlingModal" class="fixed inset-0 z-50 hidden items-center justify-center">
-        <div class="absolute inset-0 bg-black/50" onclick="closeTambahKavlingModal()"></div>
-        <div class="relative bg-white rounded-xl shadow-lg w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
-            <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
-                <h2 class="text-lg font-bold text-gray-900">Tambah Kavling</h2>
-                <button type="button" onclick="closeTambahKavlingModal()"
-                        class="text-gray-400 hover:text-gray-700 text-xl leading-none">&times;</button>
+                            <tr>
+                                <td><a href="{{ route('kavling.show', $k) }}" class="font-semibold text-forest-700 hover:underline">{{ $k->kode_kavling }}</a></td>
+                                <td>{{ $k->tipe }}</td>
+                                <td class="whitespace-nowrap text-slate-500">{{ $k->ukuran ?: '—' }}</td>
+                                <td class="text-right tabular-nums">{{ $k->luas ? angka($k->luas, 0) . ' m²' : '—' }}</td>
+                                <td class="text-right tabular-nums">
+                                    {{ $hargaM2 ? rupiah($hargaM2) : '—' }}
+                                    @if ($t)<x-icon name="lock" class="ml-0.5 inline h-3.5 w-3.5 text-slate-400" title="Harga terkunci di transaksi"/>@endif
+                                </td>
+                                <td class="text-right font-medium tabular-nums">{{ $hargaJual ? rupiah($hargaJual) : 'Menunggu luas' }}</td>
+                                <td><x-badge :status="$k->status" :label="$k->label_status"/></td>
+                                <td>
+                                    @if ($t)
+                                        <a href="{{ route('transaksi-penjualan.show', $t) }}" class="hover:text-forest-700">
+                                            <span class="block font-medium">{{ $t->konsumen->nama_lengkap }}</span>
+                                            <span class="text-xs text-slate-500">{{ $t->kode_transaksi }}</span>
+                                        </a>
+                                    @else
+                                        <span class="text-slate-400">—</span>
+                                    @endif
+                                </td>
+                                <td>
+                                    <div class="flex justify-end gap-1">
+                                        <a href="{{ route('kavling.show', $k) }}" class="btn-icon" title="Detail"><x-icon name="eye" class="h-[18px] w-[18px]"/></a>
+                                        <button type="button" class="btn-icon" title="Ubah" x-on:click="ubah(@js($dataForm))"><x-icon name="pencil" class="h-[18px] w-[18px]"/></button>
+                                        <x-delete-button :action="route('kavling.destroy', $k)" title="Hapus kavling {{ $k->kode_kavling }}?"
+                                                         message="Kavling yang pernah bertransaksi tidak bisa dihapus."/>
+                                    </div>
+                                </td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
             </div>
-            <form action="{{ route('kavling.store') }}" method="POST" class="p-6 space-y-4">
-                @csrf
-                @include('kavling._form')
-                <div class="flex gap-3 pt-4 border-t border-gray-200 mt-4">
-                    <button type="submit" class="bg-gray-900 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-gray-800">
-                        Simpan
-                    </button>
-                    <button type="button" onclick="closeTambahKavlingModal()"
-                            class="px-5 py-2 rounded-lg text-sm font-medium border border-gray-300 text-gray-700 hover:bg-gray-50">
-                        Batal
-                    </button>
-                </div>
-            </form>
-        </div>
+        @endif
     </div>
 
-    {{-- Modal Edit Kavling (satu per baris) --}}
-    @foreach($kavlings as $kavling)
-        <div id="editKavlingModal{{ $kavling->id }}" class="fixed inset-0 z-50 hidden items-center justify-center">
-            <div class="absolute inset-0 bg-black/50" onclick="closeEditKavlingModal({{ $kavling->id }})"></div>
-            <div class="relative bg-white rounded-xl shadow-lg w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
-                <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
-                    <h2 class="text-lg font-bold text-gray-900">Edit Kavling — {{ $kavling->kode_kavling }}</h2>
-                    <button type="button" onclick="closeEditKavlingModal({{ $kavling->id }})"
-                            class="text-gray-400 hover:text-gray-700 text-xl leading-none">&times;</button>
-                </div>
-                <form action="{{ route('kavling.update', $kavling) }}" method="POST" class="p-6 space-y-4">
-                    @csrf
-                    @method('PUT')
-                    @include('kavling._form', ['kavling' => $kavling])
-                    <div class="flex gap-3 pt-4 border-t border-gray-200 mt-4">
-                        <button type="submit" class="bg-gray-900 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-gray-800">
-                            Update
-                        </button>
-                        <button type="button" onclick="closeEditKavlingModal({{ $kavling->id }})"
-                                class="px-5 py-2 rounded-lg text-sm font-medium border border-gray-300 text-gray-700 hover:bg-gray-50">
-                            Batal
-                        </button>
+    {{-- Modal tambah / ubah --}}
+    <x-modal name="kavling" max-width="lg" :show="old('_form') === 'kavling' && $errors->any()">
+        <form method="POST" :action="action">
+            @csrf
+            <template x-if="form.id"><input type="hidden" name="_method" value="PUT"></template>
+            <input type="hidden" name="_form" value="kavling">
+            <input type="hidden" name="_id" :value="form.id">
+            <input type="hidden" name="_terkunci" :value="form.terkunci ? 1 : ''">
+
+            <div class="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+                <h3 class="text-base font-semibold text-slate-900" x-text="form.id ? 'Ubah Kavling' : 'Tambah Kavling'"></h3>
+                <button type="button" class="btn-icon -mr-2" x-on:click="$dispatch('close-modal', 'kavling')"><x-icon name="x"/></button>
+            </div>
+
+            <div class="space-y-4 p-5">
+                <template x-if="form.terkunci">
+                    <div class="flex gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                        <x-icon name="lock" class="h-4 w-4"/> Kavling sedang bertransaksi: blok, nomor, dan luas dikunci.
                     </div>
-                </form>
+                </template>
+                <div class="grid grid-cols-2 gap-4">
+                    <x-field label="Blok" name="blok" required>
+                        <input type="text" name="blok" id="blok" x-model="form.blok" maxlength="3" :readonly="form.terkunci" class="form-input uppercase" placeholder="A">
+                    </x-field>
+                    <x-field label="Nomor" name="nomor" required>
+                        <input type="number" name="nomor" id="nomor" x-model="form.nomor" min="1" max="99" :readonly="form.terkunci" class="form-input" placeholder="1">
+                    </x-field>
+                </div>
+                <p class="-mt-2 text-xs text-slate-500">Kode otomatis:
+                    <span class="font-semibold text-slate-700" x-text="'{{ \App\Services\Pengaturan::get('prefix_kavling', 'TR') }}-' + (form.blok || '?').toUpperCase() + String(form.nomor || 0).padStart(2, '0')"></span></p>
+
+                <x-field label="Tipe" name="tipe" required>
+                    <select name="tipe" id="tipe" x-model="form.tipe" class="form-input">
+                        @foreach (\App\Models\Kavling::TIPE as $tipe)<option>{{ $tipe }}</option>@endforeach
+                    </select>
+                </x-field>
+                <div class="grid gap-4 sm:grid-cols-2">
+                    <x-field label="Ukuran" name="ukuran" hint="Contoh: 7 x 14">
+                        <input type="text" name="ukuran" id="ukuran" x-model="form.ukuran" class="form-input">
+                    </x-field>
+                    <x-field label="Luas (m²)" name="luas" hint="Kosongkan bila belum final">
+                        <input type="number" step="0.01" min="1" name="luas" id="luas" x-model="form.luas" :readonly="form.terkunci" class="form-input">
+                    </x-field>
+                </div>
+                <div class="rounded-lg bg-slate-50 px-4 py-3 text-sm" x-show="!form.terkunci">
+                    <div class="flex justify-between"><span class="text-slate-500">Harga/m² (tahap aktif)</span><span class="font-medium" x-text="rupiah(harga)"></span></div>
+                    <div class="mt-1 flex justify-between"><span class="text-slate-500">Estimasi harga jual</span><span class="font-semibold text-slate-900" x-text="estimasi ? rupiah(estimasi) : '—'"></span></div>
+                </div>
+                <x-field label="Catatan" name="catatan">
+                    <textarea name="catatan" id="catatan" rows="2" x-model="form.catatan" class="form-input"></textarea>
+                </x-field>
             </div>
-        </div>
-    @endforeach
 
+            <div class="flex flex-col-reverse gap-2 border-t border-slate-100 px-5 py-4 sm:flex-row sm:justify-end">
+                <button type="button" class="btn btn-secondary" x-on:click="$dispatch('close-modal', 'kavling')">Batal</button>
+                <button type="submit" class="btn btn-primary" x-text="form.id ? 'Simpan Perubahan' : 'Tambah Kavling'"></button>
+            </div>
+        </form>
+    </x-modal>
 </div>
-
-<script>
-    function openTambahKavlingModal() {
-        const modal = document.getElementById('tambahKavlingModal');
-        modal.classList.remove('hidden');
-        modal.classList.add('flex');
-        if (typeof resetFormKavling === 'function') resetFormKavling();
-    }
-
-    function closeTambahKavlingModal() {
-        const modal = document.getElementById('tambahKavlingModal');
-        modal.classList.add('hidden');
-        modal.classList.remove('flex');
-    }
-
-    function openEditKavlingModal(id) {
-        const modal = document.getElementById('editKavlingModal' + id);
-        modal.classList.remove('hidden');
-        modal.classList.add('flex');
-    }
-
-    function closeEditKavlingModal(id) {
-        const modal = document.getElementById('editKavlingModal' + id);
-        modal.classList.add('hidden');
-        modal.classList.remove('flex');
-    }
-
-    {{-- Buka modal yang BENER aja, dicocokkan lewat old('edit_id') --}}
-    @if($errors->any())
-        document.addEventListener('DOMContentLoaded', function () {
-            const editId = "{{ old('edit_id') }}";
-            if (editId && editId !== 'new') {
-                openEditKavlingModal(editId);
-            } else {
-                openTambahKavlingModal();
-            }
-        });
-    @endif
-</script>
 @endsection

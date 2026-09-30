@@ -1,24 +1,52 @@
 @extends('layouts.app')
+@section('title', 'Kavling ' . $kavling->kode_kavling)
 
 @section('content')
-<div class="p-6 max-w-2xl">
-    <p class="text-sm text-gray-500 mb-1">Data Master &gt; Master Kavling &gt; <span class="text-gray-800 font-medium">Detail Kavling</span></p>
-    <h1 class="text-2xl font-bold text-gray-900 mb-6">Detail Kavling {{ $kavling->kode_kavling }}</h1>
+@php $aktif = $kavling->transaksiPenjualans->firstWhere('status', '!=', 'batal'); @endphp
 
-    <div class="bg-white border rounded-xl p-6 divide-y text-sm">
-        <div class="py-3 flex justify-between"><span class="text-gray-500">Kode Kavling</span><span class="font-medium">{{ $kavling->kode_kavling }}</span></div>
-        <div class="py-3 flex justify-between"><span class="text-gray-500">Blok</span><span class="font-medium">{{ $kavling->blok }}</span></div>
-        <div class="py-3 flex justify-between"><span class="text-gray-500">No</span><span class="font-medium">{{ $kavling->no }}</span></div>
-        <div class="py-3 flex justify-between"><span class="text-gray-500">Tipe</span><span class="font-medium">{{ $kavling->tipe }}</span></div>
-        <div class="py-3 flex justify-between"><span class="text-gray-500">Ukuran</span><span class="font-medium">{{ $kavling->ukuran }}</span></div>
-        <div class="py-3 flex justify-between"><span class="text-gray-500">Luas</span><span class="font-medium">{{ $kavling->luas }} m²</span></div>
-        <div class="py-3 flex justify-between"><span class="text-gray-500">Harga/m²</span><span class="font-medium">Rp{{ number_format($kavling->harga_per_m2, 0, ',', '.') }}</span></div>
-        <div class="py-3 flex justify-between"><span class="text-gray-500">Harga Jual</span><span class="font-medium">Rp{{ number_format($kavling->harga_jual, 0, ',', '.') }}</span></div>
-        <div class="py-3 flex justify-between"><span class="text-gray-500">Status</span><span class="font-medium">{{ ucfirst($kavling->status) }}</span></div>
-    </div>
+<x-page-header :title="'Kavling ' . $kavling->kode_kavling" :subtitle="$kavling->tipe . ($kavling->ukuran ? ' · ' . $kavling->ukuran : '')"
+               :back="route('kavling.index')" :breadcrumbs="['Master Kavling' => route('kavling.index'), $kavling->kode_kavling => null]">
+    <x-slot:actions>
+        @if (! $aktif && $kavling->harga_jual)
+            <a href="{{ route('transaksi-penjualan.create', ['kavling' => $kavling->id]) }}" class="btn btn-primary"><x-icon name="plus" class="h-4 w-4"/> Buat Transaksi</a>
+        @endif
+    </x-slot:actions>
+</x-page-header>
 
-    <a href="{{ route('kavling.index') }}" class="inline-block mt-6 text-sm text-gray-700 border px-4 py-2 rounded-lg hover:bg-gray-50">
-        ← Kembali ke Master Kavling
-    </a>
+<div class="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4 sm:gap-4">
+    <x-stat-card label="Status" :value="$kavling->label_status" icon="grid"/>
+    <x-stat-card label="Luas" :value="$kavling->luas ? angka($kavling->luas) . ' m²' : 'Belum final'"/>
+    <x-stat-card :label="$aktif ? 'Harga / m² (terkunci)' : 'Harga / m² (tahap aktif)'" :value="rupiah($aktif?->harga_per_m2 ?? $kavling->harga_per_m2)"/>
+    <x-stat-card label="Harga Jual" :value="($aktif?->nilai_jual ?? $kavling->harga_jual) ? rupiah($aktif?->nilai_jual ?? $kavling->harga_jual) : '—'" tone="dark"/>
 </div>
+
+@if ($kavling->catatan)
+    <div class="mb-6 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600"><span class="font-medium text-slate-800">Catatan:</span> {{ $kavling->catatan }}</div>
+@endif
+
+<x-card title="Riwayat Transaksi" :padding="false">
+    @if ($kavling->transaksiPenjualans->isEmpty())
+        <x-empty-state title="Belum ada transaksi" message="Kavling ini belum pernah dipesan."/>
+    @else
+        <div class="table-wrap">
+            <table class="table">
+                <thead><tr><th>ID Transaksi</th><th>Tanggal</th><th>Pembeli</th><th>Agen</th><th class="text-right">Harga Jual</th><th class="text-right">Terbayar</th><th>Status</th><th>PPJB</th></tr></thead>
+                <tbody>
+                    @foreach ($kavling->transaksiPenjualans as $t)
+                        <tr>
+                            <td><a href="{{ route('transaksi-penjualan.show', $t) }}" class="font-semibold text-forest-700 hover:underline">{{ $t->kode_transaksi }}</a></td>
+                            <td class="whitespace-nowrap">{{ tanggal($t->tanggal) }}</td>
+                            <td>{{ $t->konsumen->nama_lengkap }}</td>
+                            <td>{{ $t->agen->nama_agen ?? '—' }}</td>
+                            <td class="text-right tabular-nums">{{ rupiah($t->nilai_jual) }}</td>
+                            <td class="text-right tabular-nums">{{ rupiah($t->pokokTerbayar()) }}</td>
+                            <td><x-badge :status="$t->status"/></td>
+                            <td><x-badge :status="$t->checklist->ppjb_status ?? 'belum'"/></td>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+    @endif
+</x-card>
 @endsection

@@ -81,13 +81,17 @@ class KasProyekController extends Controller
             'catatan'  => 'nullable|string',
         ]);
 
-        KasTransaksi::create($data);
+        KasTransaksi::create($data + ['asal' => 'manual']);
 
         return back()->with('success', 'Transaksi kas berhasil ditambahkan.');
     }
 
     public function update(Request $request, KasTransaksi $kasTransaksi)
     {
+        if ($kasTransaksi->isOtomatis()) {
+            return back()->with('error', "Baris kas {$kasTransaksi->kode} dibuat otomatis dari pembayaran/pembatalan transaksi. Ubah lewat halaman transaksinya.");
+        }
+
         $data = $request->validate([
             'tanggal'  => 'required|date',
             'kode'     => 'required|string|max:50|unique:kas_transaksis,kode,' . $kasTransaksi->id,
@@ -106,6 +110,10 @@ class KasProyekController extends Controller
 
     public function destroy(KasTransaksi $kasTransaksi)
     {
+        if ($kasTransaksi->isOtomatis()) {
+            return back()->with('error', "Baris kas {$kasTransaksi->kode} dibuat otomatis dari pembayaran/pembatalan transaksi. Ubah lewat halaman transaksinya.");
+        }
+
         $kasTransaksi->delete();
 
         return back()->with('success', 'Transaksi kas berhasil dihapus.');

@@ -4,55 +4,25 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 
+/** Identitas konsumen. Data pembelian ada di TransaksiPenjualan. */
 class Konsumen extends Model
 {
     use HasFactory;
 
     protected $fillable = [
-        'id_konsumen',
-        'nama_lengkap',
-        'label',
-        'nik',
-        'no_hp',
-        'email',
-        'alamat',
-        'kavling_id',
-        'agen_id',
-        'status_transaksi',
-        'tanggal_transaksi',
-        'nominal_reservasi',
-        'nominal_booking',
-        'down_payment',
-        'skema_bayar',
-        'jumlah_angsuran',
-        'status_reservasi',
-        'status_booking',
-        'status_ppjb',
-        'status_ajb',
-        'catatan',
+        'id_konsumen', 'nama_lengkap', 'label', 'nik', 'no_hp', 'email', 'alamat', 'pekerjaan', 'catatan',
     ];
 
-    protected $casts = [
-        'tanggal_transaksi' => 'date',
-        'nominal_reservasi' => 'decimal:2',
-        'nominal_booking'   => 'decimal:2',
-        'down_payment'      => 'decimal:2',
-        'jumlah_angsuran'   => 'integer',
-    ];
-
-    public function kavling()
+    public function transaksis(): HasMany
     {
-        return $this->belongsTo(Kavling::class);
+        return $this->hasMany(TransaksiPenjualan::class)->latest('tanggal');
     }
 
-    public function agen()
+    public function pembayarans(): HasManyThrough
     {
-        return $this->belongsTo(Agen::class);
-    }
-
-    public function riwayatPembayarans()
-    {
-        return $this->hasMany(RiwayatPembayaran::class);
+        return $this->hasManyThrough(Pembayaran::class, TransaksiPenjualan::class, 'konsumen_id', 'transaksi_id');
     }
 }

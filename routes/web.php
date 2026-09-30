@@ -1,51 +1,62 @@
 <?php
 
-use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\KasProyekController;
 use App\Http\Controllers\KavlingController;
 use App\Http\Controllers\AgenController;
-use App\Http\Controllers\SkemaHargaController;
 use App\Http\Controllers\KonsumenController;
-use App\Http\Controllers\TransaksiPenjualanController;
+use App\Http\Controllers\PembayaranController;
+use App\Http\Controllers\ProyekController;
 use App\Http\Controllers\RabController;
-use App\Http\Controllers\KasProyekController;
+use App\Http\Controllers\SkemaHargaController;
+use App\Http\Controllers\TransaksiPenjualanController;
+use Illuminate\Support\Facades\Route;
 
-Route::get('/', function () {
-    return redirect()->route('dashboard');
-});
+Route::redirect('/', '/dashboard');
 
 Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
-// Resource ini mencakup: index, create, store, show, edit, update, destroy
-// ->parameters(...) WAJIB ada supaya route parameter-nya "kavling", cocok sama
-// nama variabel $kavling yang dipakai di semua method KavlingController.
+// --- Data Master ---
+Route::get('/pengaturan-proyek', [ProyekController::class, 'index'])->name('proyek.index');
+Route::put('/pengaturan-proyek', [ProyekController::class, 'update'])->name('proyek.update');
+
 Route::resource('master-kavling', KavlingController::class)
     ->names('kavling')
-    ->parameters(['master-kavling' => 'kavling']);
+    ->parameters(['master-kavling' => 'kavling'])
+    ->except(['create', 'edit']);
 
-// --- Data Master ---
-Route::view('/proyek', 'proyek.index')->name('proyek.index');
 Route::get('/skema-harga', [SkemaHargaController::class, 'index'])->name('skema-harga.index');
-Route::post('/skema-harga', [SkemaHargaController::class, 'store'])->name('skema-harga.store');
-Route::put('/skema-harga/{skemaHarga}', [SkemaHargaController::class, 'update'])->name('skema-harga.update');
-Route::delete('/skema-harga/{skemaHarga}', [SkemaHargaController::class, 'destroy'])->name('skema-harga.destroy');
 
-Route::get('/agen/next-kode', [App\Http\Controllers\AgenController::class, 'nextKode'])->name('agen.next-kode');
-
-Route::get('/data-agen', [AgenController::class, 'index'])->name('agen.index');
-Route::post('/data-agen', [AgenController::class, 'store'])->name('agen.store');
-Route::get('/data-agen/{agen}', [AgenController::class, 'show'])->name('agen.show');
-Route::get('/data-agen/{agen}/edit', [AgenController::class, 'edit'])->name('agen.edit');
-Route::put('/data-agen/{agen}', [AgenController::class, 'update'])->name('agen.update');
-Route::delete('/data-agen/{agen}', [AgenController::class, 'destroy'])->name('agen.destroy');
-
+Route::get('/data-agen/next-kode', [AgenController::class, 'nextKode'])->name('agen.next-kode');
+Route::resource('data-agen', AgenController::class)
+    ->names('agen')
+    ->parameters(['data-agen' => 'agen'])
+    ->except(['create', 'edit']);
 
 // --- Penjualan ---
-Route::prefix('transaksi-penjualan')->name('transaksi-penjualan.')->group(function () {
-    Route::get('/', [TransaksiPenjualanController::class, 'index'])->name('index');
-    Route::post('/', [TransaksiPenjualanController::class, 'store'])->name('store');
-    Route::get('/cari-konsumen', [TransaksiPenjualanController::class, 'searchKonsumen'])->name('cari-konsumen');
+Route::prefix('transaksi-penjualan')->name('transaksi-penjualan.')->controller(TransaksiPenjualanController::class)->group(function () {
+    Route::get('/', 'index')->name('index');
+    Route::get('/baru', 'create')->name('create');
+    Route::post('/', 'store')->name('store');
+    Route::get('/{transaksi}', 'show')->name('show');
+    Route::get('/{transaksi}/ubah', 'edit')->name('edit');
+    Route::put('/{transaksi}', 'update')->name('update');
+    Route::post('/{transaksi}/batal', 'batal')->name('batal');
 });
+
+Route::prefix('transaksi-penjualan/{transaksi}/pembayaran')->name('pembayaran.')->controller(PembayaranController::class)->group(function () {
+    Route::post('/', 'store')->name('store');
+    Route::put('/{pembayaran}', 'update')->name('update')->scopeBindings();
+    Route::delete('/{pembayaran}', 'destroy')->name('destroy')->scopeBindings();
+});
+Route::get('/kwitansi/{pembayaran}', [PembayaranController::class, 'kwitansi'])->name('pembayaran.kwitansi');
+Route::get('/kwitansi/{pembayaran}/unduh', [PembayaranController::class, 'kwitansiUnduh'])->name('pembayaran.kwitansi.unduh');
+
+Route::get('/data-konsumen/cari', [KonsumenController::class, 'cari'])->name('konsumen.cari');
+Route::resource('data-konsumen', KonsumenController::class)
+    ->names('konsumen')
+    ->parameters(['data-konsumen' => 'konsumen'])
+    ->except(['create', 'edit']);
 
 // --- Keuangan ---
 Route::get('/rab-realisasi', [RabController::class, 'index'])->name('rab.index');
@@ -58,13 +69,3 @@ Route::get('/kas-proyek', [KasProyekController::class, 'index'])->name('kas-proy
 Route::post('/kas-proyek', [KasProyekController::class, 'store'])->name('kas-proyek.store');
 Route::put('/kas-proyek/{kasTransaksi}', [KasProyekController::class, 'update'])->name('kas-proyek.update');
 Route::delete('/kas-proyek/{kasTransaksi}', [KasProyekController::class, 'destroy'])->name('kas-proyek.destroy');
-
-Route::view('/alokasi-cashflow', 'cashflow.index')->name('cashflow.index');
-
-Route::get('/data-konsumen', [KonsumenController::class, 'index'])->name('konsumen.index');
-Route::post('/data-konsumen', [KonsumenController::class, 'store'])->name('konsumen.store');
-Route::get('/data-konsumen/{konsumen}', [KonsumenController::class, 'show'])->name('konsumen.show');
-Route::get('/data-konsumen/{konsumen}/kwitansi/{riwayat}', [KonsumenController::class, 'kwitansi'])->name('konsumen.kwitansi');
-Route::get('/data-konsumen/{konsumen}/buat-spk', [KonsumenController::class, 'buatSpk'])->name('konsumen.buat-spk');
-Route::get('konsumen/{konsumen}/kwitansi/{riwayat}/unduh', [KonsumenController::class, 'kwitansiUnduh'])
-    ->name('konsumen.kwitansi.unduh');

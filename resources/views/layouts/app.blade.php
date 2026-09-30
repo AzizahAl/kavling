@@ -4,63 +4,26 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>@yield('title', 'Dashboard') - Tectona Residence</title>
-
-    {{-- Tailwind CDN (kalau mau versi build/production, ganti pakai Vite + tailwind.config.js) --}}
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        forest: {
-                            900: '#0f2418',
-                            800: '#123420',
-                            700: '#1a4028',
-                        },
-                        gold: {
-                            500: '#e8b74d',
-                        }
-                    },
-                    fontFamily: {
-                        sans: ['Inter', 'ui-sans-serif', 'system-ui'],
-                    }
-                }
-            }
-        }
-    </script>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <style>
-        body { font-family: 'Inter', sans-serif; }
-        .scrollbar-thin::-webkit-scrollbar { width: 6px; }
-        .scrollbar-thin::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
-        [x-cloak] { display: none !important; }
-    </style>
-
-    {{-- Chart.js untuk semua grafik (donut, bar, line) --}}
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-
-    {{-- Alpine.js — WAJIB defer --}}
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-
+    <title>@yield('title', 'Dashboard') · {{ $namaProyek ?? 'Tectona Residen' }}</title>
+    {{-- Semua aset (Tailwind, Alpine, Chart.js, font Inter) dibundel lokal lewat Vite: tidak butuh internet. --}}
+    @vite(['resources/css/app.css', 'resources/js/app.js'])
     @stack('styles')
 </head>
-<body class="bg-slate-50 text-slate-800">
+<body class="min-h-screen" x-data="{ sidebar: false }" x-on:keydown.escape.window="sidebar = false">
     <div class="flex min-h-screen">
-        {{-- SIDEBAR --}}
         @include('partials.sidebar')
 
-        {{-- MAIN CONTENT --}}
-        <div class="flex-1 flex flex-col min-w-0">
+        <div class="flex min-w-0 flex-1 flex-col">
             @include('partials.topbar')
 
-            <main class="flex-1 p-6 md:p-8">
+            <main class="mx-auto w-full max-w-[1440px] flex-1 px-4 py-5 sm:px-6 lg:px-8 lg:py-7">
+                @include('partials.flash')
                 @yield('content')
             </main>
         </div>
     </div>
 
+    @include('partials.confirm-dialog')
     @stack('scripts')
 </body>
 </html>

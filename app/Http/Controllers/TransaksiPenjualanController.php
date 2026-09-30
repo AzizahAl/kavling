@@ -5,209 +5,198 @@ namespace App\Http\Controllers;
 use App\Models\Agen;
 use App\Models\Kavling;
 use App\Models\Konsumen;
-use App\Models\RiwayatPembayaran;
+use App\Models\Pembayaran;
 use App\Models\TransaksiPenjualan;
+use App\Services\AngsuranService;
+use App\Services\HargaService;
+use App\Services\Penomoran;
+use App\Services\Pengaturan;
+use App\Services\TransaksiService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
 class TransaksiPenjualanController extends Controller
 {
+    public function __construct(private TransaksiService $svc) {}
+
     public function index(Request $request)
     {
-        $query = TransaksiPenjualan::with(['konsumen', 'kavling', 'agen']);
+        $filter = fn ($q) => $q
+            ->when($request->filled('cari'), fn ($q) => $q->where(fn ($w) => $w
+                ->where('kode_transaksi', 'like', "%{$request->cari}%")
+                ->orWhereHas('konsumen', fn ($k) => $k->where('nama_lengkap', 'like', "%{$request->cari}%"))
+                ->orWhereHas('kavling', fn ($k) => $k->where('kode_kavling', 'like', "%{$request->cari}%"))))
+            ->when($request->filled('status'), fn ($q) => $q->where('status', $request->status))
+            ->when($request->filled('jenis'), fn ($q) => $q->where('jenis_pembayaran', $request->jenis))
+            ->when($request->filled('agen'), fn ($q) => $q->where('agen_id', $request->agen))
+            ->when($request->filled('bulan'), fn ($q) => $q->whereYear('tanggal', substr($request->bulan, 0, 4))->whereMonth('tanggal', substr($request->bulan, 5, 2)));
 
-        if ($request->filled('cari')) {
-            $cari = $request->cari;
-            $query->where(function ($q) use ($cari) {
-                $q->where('kode_transaksi', 'like', "%{$cari}%")
-                  ->orWhereHas('konsumen', fn($qq) => $qq->where('nama_lengkap', 'like', "%{$cari}%"));
-            });
-        }
+        $transaksis = $filter(TransaksiPenjualan::with(['konsumen', 'kavling', 'agen'])->denganRingkasan())
+            ->latest('tanggal')->latest('id')
+            ->paginate(15)->withQueryString();
 
-        if ($request->filled('status') && $request->status !== 'semua') {
-            $query->where('status', $request->status);
-        }
-
-        if ($request->filled('jenis') && $request->jenis !== 'semua') {
-            $query->where('jenis_pembayaran', $request->jenis);
-        }
-
-        if ($request->filled('periode')) {
-            $query->whereDate('tanggal', $request->periode);
-        }
-
-        $transaksis = $query->orderByDesc('tanggal')->paginate(10)->withQueryString();
+        $aktif = TransaksiPenjualan::aktif();
+        $totalPokok = (float) DB::table('pembayarans')->join('transaksi_penjualans as t', 't.id', '=', 'pembayarans.transaksi_id')
+            ->where('t.status', '!=', 'batal')->whereIn('pembayarans.jenis', TransaksiPenjualan::JENIS_POKOK)->sum('pembayarans.nominal');
+        $totalNilai = (float) (clone $aktif)->sum('nilai_jual');
 
         $stats = [
-            'total' => TransaksiPenjualan::count(),
-            'reservasi' => TransaksiPenjualan::where('status', 'reservasi')->count(),
-            'booking' => TransaksiPenjualan::where('status', 'booking')->count(),
-            'dp' => TransaksiPenjualan::where('status', 'dp')->count(),
-            'total_nilai_jual' => TransaksiPenjualan::sum('nilai_jual'),
-            'total_bayar' => TransaksiPenjualan::sum('total_bayar'),
-            'total_sisa' => TransaksiPenjualan::sum('sisa_pembayaran'),
-            'lunas' => TransaksiPenjualan::where('status', 'lunas')->count(),
+            'aktif'       => (clone $aktif)->count(),
+            'per_status'  => TransaksiPenjualan::selectRaw('status, COUNT(*) n')->groupBy('status')->pluck('n', 'status'),
+            'nilai_jual'  => $totalNilai,
+            'terbayar'    => $totalPokok,
+            'piutang'     => $totalNilai - $totalPokok,
         ];
 
-        // Kavling yang masih tersedia, buat dropdown di modal
-        $kavlings = Kavling::where('status', 'tersedia')
-            ->orderBy('blok')
-            ->orderBy('no')
-            ->get(['id', 'kode_kavling', 'blok', 'no', 'tipe', 'luas', 'harga_per_m2', 'harga_jual']);
+        return view('transaksi-penjualan.index', [
+            'transaksis' => $transaksis,
+            'stats'      => $stats,
+            'agens'      => Agen::orderBy('nama_agen')->pluck('nama_agen', 'id'),
+        ]);
+    }
 
-        $agens = Agen::orderBy('nama_agen')->get(['id', 'nama_agen']);
-
-        $kodeBaru = TransaksiPenjualan::generateKodeTransaksi();
-
-        return view('transaksi-penjualan.index', compact(
-            'transaksis', 'stats', 'kavlings', 'agens', 'kodeBaru'
-        ));
+    public function create(Request $request, HargaService $harga)
+    {
+        return view('transaksi-penjualan.form', $this->dataForm($harga) + [
+            'transaksi' => null,
+            'pilihKavling' => $request->integer('kavling') ?: null,
+            'pilihKonsumen' => $request->filled('konsumen') ? Konsumen::find($request->konsumen) : null,
+        ]);
     }
 
     public function store(Request $request)
     {
-        $validated = $request->validate([
-            'tanggal'          => 'required|date',
-            'status'           => 'required|in:reservasi,booking,dp,lunas',
-            'konsumen_id'      => 'required|exists:konsumens,id',
-            'kavling_id'       => 'required|exists:kavlings,id',
-            'agen_id'          => 'nullable|exists:agens,id',
-            'jenis_pembayaran' => 'required|in:cash,angsuran',
-            'tenor'            => 'nullable|required_if:jenis_pembayaran,angsuran|integer|min:1',
-            'bayar_sekarang'   => 'nullable|numeric|min:0',
-            'catatan'          => 'nullable|string',
-        ]);
+        $baru = $request->input('konsumen_mode') === 'baru';
 
-        $konsumen = Konsumen::findOrFail($validated['konsumen_id']);
-        $kavling  = Kavling::findOrFail($validated['kavling_id']);
-
-        $nilaiJual  = (float) $kavling->harga_jual;
-        $sudahBayar = $this->totalSudahBayar($konsumen); // dihitung server, bukan dari input
-        $sisaAwal   = max($nilaiJual - $sudahBayar, 0);
-
-        $bayarSekarang = min((float) ($validated['bayar_sekarang'] ?? 0), $sisaAwal);
-        $totalBayar    = $sudahBayar + $bayarSekarang;
-        $sisa          = max($nilaiJual - $totalBayar, 0);
-
-        $status = $sisa <= 0 ? 'lunas' : $validated['status'];
-
-        TransaksiPenjualan::create([
-            'kode_transaksi'   => TransaksiPenjualan::generateKodeTransaksi(),
-            'tanggal'          => $validated['tanggal'],
-            'status'           => $status,
-            'konsumen_id'      => $validated['konsumen_id'],
-            'kavling_id'       => $validated['kavling_id'],
-            'agen_id'          => $validated['agen_id'] ?? null,
-            'jenis_pembayaran' => $validated['jenis_pembayaran'],
-            'nilai_jual'       => $nilaiJual,
-            'tenor'            => $validated['jenis_pembayaran'] === 'angsuran' ? $validated['tenor'] : null,
-            'nominal_dp'       => $bayarSekarang,
-            'total_bayar'      => $totalBayar,
-            'sisa_pembayaran'  => $sisa,
-            'catatan'          => $validated['catatan'] ?? null,
-        ]);
-
-        if ($request->expectsJson()) {
-            return response()->json(['success' => true]);
+        $aturan = $this->aturan() + [
+            'konsumen_mode'  => ['required', 'in:lama,baru'],
+            'kavling_id'     => ['required', 'exists:kavlings,id'],
+            'konsumen_id'    => [Rule::requiredIf(! $baru), 'nullable', 'exists:konsumens,id'],
+            'bayar_jenis'    => ['nullable', Rule::in(array_keys(Pembayaran::JENIS))],
+            'bayar_nominal'  => ['nullable', 'numeric', 'min:0'],
+            'bayar_metode'   => ['nullable', Rule::in(array_keys(Pembayaran::METODE))],
+            'bayar_no_bukti' => ['nullable', 'string', 'max:100'],
+        ];
+        if ($baru) {
+            $aturan += KonsumenController::aturan(null, 'konsumen_');
         }
 
-        return redirect()->route('transaksi-penjualan.index')
-            ->with('success', 'Transaksi berhasil disimpan.');
-    }
+        $data = $request->validate($aturan, [
+            'konsumen_id.required' => 'Pilih konsumen, atau isi data konsumen baru.',
+            'konsumen_nik.unique'  => 'NIK ini sudah terdaftar. Pilih dari konsumen lama.',
+        ], $this->atribut());
 
-    // Dipanggil via fetch() di modal "Cari Konsumen"
-    public function searchKonsumen(Request $request)
-    {
-        $q = trim($request->get('q', ''));
+        $t = DB::transaction(function () use ($data, $baru) {
+            if ($baru) {
+                $k = Konsumen::create(collect($data)->filter(fn ($v, $key) => str_starts_with($key, 'konsumen_') && $key !== 'konsumen_mode' && $key !== 'konsumen_id')
+                    ->mapWithKeys(fn ($v, $key) => [substr($key, 9) => $v])->all() + [
+                        'id_konsumen' => Penomoran::berikut('konsumens', 'id_konsumen', Pengaturan::get('prefix_konsumen', 'CUS')),
+                    ]);
+                $data['konsumen_id'] = $k->id;
+            }
 
-        $konsumens = Konsumen::with(['kavling', 'agen'])
-            ->where(function ($w) use ($q) {
-                $w->where('nama_lengkap', 'like', "%{$q}%")
-                  ->orWhere('id_konsumen', 'like', "%{$q}%")
-                  ->orWhere('no_hp', 'like', "%{$q}%");
-            })
-            ->limit(5)
-            ->get();
+            $bayar = ! empty($data['bayar_nominal']) ? [
+                'jenis'    => $data['bayar_jenis'] ?? 'reservasi',
+                'nominal'  => $data['bayar_nominal'],
+                'metode'   => $data['bayar_metode'] ?? 'transfer',
+                'no_bukti' => $data['bayar_no_bukti'] ?? null,
+            ] : null;
 
-        $hasil = $konsumens->map(function (Konsumen $k) {
-            $kv = $k->kavling;
-
-            return [
-                'id'               => $k->id,
-                'kode_konsumen'    => $k->id_konsumen,
-                'nama'             => $k->nama_lengkap,
-                'telepon'          => $k->no_hp,
-                'agen_id'          => $k->agen_id,
-                'status'           => $this->mapStatus($k),
-                'jenis_pembayaran' => $this->mapJenisPembayaran($k),
-                'tenor'            => $k->jumlah_angsuran ?: null,
-                'sudah_bayar'      => $this->totalSudahBayar($k),
-                'kavling'          => $kv ? [
-                    'id'           => $kv->id,
-                    'kode_kavling' => $kv->kode_kavling,
-                    'blok'         => $kv->blok,
-                    'no'           => $kv->no,
-                    'tipe'         => $kv->tipe,
-                    'luas'         => $kv->luas,
-                    'harga_per_m2' => $kv->harga_per_m2,
-                    'harga_jual'   => $kv->harga_jual,
-                ] : null,
-            ];
+            return $this->svc->buat($data, $bayar, auth()->id());
         });
 
-        return response()->json($hasil);
+        return redirect()->route('transaksi-penjualan.show', $t)
+            ->with('success', "Transaksi {$t->kode_transaksi} untuk kavling {$t->kavling->kode_kavling} berhasil dibuat.");
     }
 
-    // Total yang sudah dibayar konsumen.
-    // Prioritas: riwayat pembayaran. Kalau belum ada riwayat, pakai reservasi + booking + DP.
-    private function totalSudahBayar(Konsumen $k): float
+    public function show(TransaksiPenjualan $transaksi, AngsuranService $angsuran)
     {
-        $riwayat = 0.0;
-        $table = (new RiwayatPembayaran)->getTable();
+        $transaksi->load(['konsumen', 'kavling', 'agen', 'tahap', 'checklist', 'pembuat', 'kasRefunds',
+            'pembayarans' => fn ($q) => $q->with('kas')]);
 
-        foreach (['nominal', 'jumlah', 'jumlah_bayar', 'nominal_bayar', 'total'] as $kolom) {
-            if (Schema::hasColumn($table, $kolom)) {
-                $riwayat = (float) $k->riwayatPembayarans()->sum($kolom);
-                break;
-            }
-        }
-
-        if ($riwayat > 0) {
-            return $riwayat;
-        }
-
-        return (float) $k->nominal_reservasi
-             + (float) $k->nominal_booking
-             + (float) $k->down_payment;
+        return view('transaksi-penjualan.show', [
+            't'        => $transaksi,
+            'angsuran' => $angsuran->ringkasan($transaksi),
+            'cicilan'  => $angsuran->cicilanPerBulan($transaksi),
+            'refund'   => $transaksi->isBatal() ? null : $this->svc->rincianRefund($transaksi),
+        ]);
     }
 
-    // status_transaksi konsumen -> reservasi/booking/dp/lunas
-    private function mapStatus(Konsumen $k): string
+    public function edit(TransaksiPenjualan $transaksi, HargaService $harga)
     {
-        $s = strtolower((string) $k->status_transaksi);
-
-        foreach (['lunas', 'dp', 'booking', 'reservasi'] as $opsi) {
-            if (str_contains($s, $opsi)) {
-                return $opsi;
-            }
+        if ($transaksi->isBatal()) {
+            return redirect()->route('transaksi-penjualan.show', $transaksi)->with('error', 'Transaksi yang sudah dibatalkan tidak bisa diubah.');
         }
+        $transaksi->load('kavling', 'konsumen');
 
-        return 'reservasi';
+        return view('transaksi-penjualan.form', $this->dataForm($harga) + [
+            'transaksi' => $transaksi, 'pilihKavling' => $transaksi->kavling_id, 'pilihKonsumen' => $transaksi->konsumen,
+        ]);
     }
 
-    // skema_bayar konsumen -> cash/angsuran
-    private function mapJenisPembayaran(Konsumen $k): string
+    public function update(Request $request, TransaksiPenjualan $transaksi)
     {
-        $s = strtolower((string) $k->skema_bayar);
+        $data = $request->validate($this->aturan() + ['konsumen_id' => ['required', 'exists:konsumens,id']], [], $this->atribut());
+        $this->svc->ubah($transaksi, $data);
 
-        if (str_contains($s, 'cash') || str_contains($s, 'tunai')) {
-            return 'cash';
-        }
+        return redirect()->route('transaksi-penjualan.show', $transaksi)->with('success', 'Transaksi berhasil diperbarui. Jadwal angsuran disusun ulang.');
+    }
 
-        if ($s !== '' || (int) $k->jumlah_angsuran > 0) {
-            return 'angsuran';
-        }
+    public function batal(Request $request, TransaksiPenjualan $transaksi)
+    {
+        $data = $request->validate([
+            'tanggal_batal' => ['required', 'date', 'after_or_equal:' . $transaksi->tanggal->toDateString()],
+            'alasan'        => ['required', 'string', 'max:1000'],
+        ]);
+        $this->svc->batal($transaksi, $data['tanggal_batal'], $data['alasan']);
 
-        return 'cash';
+        return redirect()->route('transaksi-penjualan.show', $transaksi)
+            ->with('success', "Transaksi {$transaksi->kode_transaksi} dibatalkan. Kavling kembali tersedia dan refund tercatat di kas.");
+    }
+
+    // ------------------------------------------------------------------
+
+    private function aturan(): array
+    {
+        return [
+            'tanggal'          => ['required', 'date', 'before_or_equal:today'],
+            'agen_id'          => ['nullable', 'exists:agens,id'],
+            'jenis_pembayaran' => ['required', 'in:cash,angsuran'],
+            'tenor'            => ['nullable', 'required_if:jenis_pembayaran,angsuran', 'integer', 'min:1', 'max:' . Pengaturan::get('tenor_maksimal', 18)],
+            'nominal_dp'       => ['nullable', 'numeric', 'min:0'],
+            'catatan'          => ['nullable', 'string', 'max:1000'],
+        ];
+    }
+
+    private function atribut(): array
+    {
+        return [
+            'konsumen_nama_lengkap' => 'nama lengkap', 'konsumen_nik' => 'NIK', 'konsumen_no_hp' => 'nomor HP',
+            'konsumen_alamat' => 'alamat', 'konsumen_email' => 'email', 'bayar_nominal' => 'nominal pembayaran awal',
+            'tanggal' => 'tanggal transaksi',
+        ];
+    }
+
+    private function dataForm(HargaService $harga): array
+    {
+        $hargaM2 = $harga->hargaAktif();
+
+        return [
+            'kavlings' => Kavling::where('status', 'tersedia')->orderBy('blok')->orderByRaw('CAST(SUBSTRING(`no`, 2) AS UNSIGNED)')->get()
+                ->map(fn ($k) => [
+                    'id' => $k->id, 'kode' => $k->kode_kavling, 'tipe' => $k->tipe, 'ukuran' => $k->ukuran,
+                    'luas' => (float) $k->luas, 'harga_m2' => $hargaM2, 'harga' => $k->luas ? round($k->luas * $hargaM2) : null,
+                ]),
+            'agens'   => Agen::orderBy('nama_agen')->pluck('nama_agen', 'id'),
+            'aturan'  => [
+                'biaya_reservasi' => Pengaturan::get('biaya_reservasi', 0),
+                'biaya_booking'   => Pengaturan::get('biaya_booking', 0),
+                'dp_min'          => Pengaturan::get('dp_minimal_persen', 0),
+                'dp_anjuran'      => Pengaturan::get('dp_anjuran_persen', 0),
+                'tenor_maks'      => Pengaturan::get('tenor_maksimal', 18),
+            ],
+            'tahapAktif' => $harga->tahapAktif(),
+        ];
     }
 }

@@ -1,162 +1,78 @@
 @extends('layouts.app')
+@section('title', 'Transaksi Penjualan')
 
 @section('content')
-<div x-data="transaksiPage()" x-init="init()">
+<x-page-header title="Transaksi Penjualan" subtitle="Total bayar & sisa dihitung otomatis dari pembayaran."
+               :breadcrumbs="['Penjualan' => null, 'Transaksi Penjualan' => null]">
+    <x-slot:actions>
+        <a href="{{ route('transaksi-penjualan.create') }}" class="btn btn-primary"><x-icon name="plus" class="h-4 w-4"/> Transaksi Baru</a>
+    </x-slot:actions>
+</x-page-header>
 
-    {{-- Header --}}
-    <div class="flex items-center justify-between mb-6">
-        <div>
-            <h1 class="text-2xl font-semibold text-slate-800">Transaksi Penjualan</h1>
-            <p class="text-sm text-slate-500 mt-1">Kelola transaksi penjualan kavling, pembayaran konsumen, dan status pelunasan.</p>
-        </div>
-        <button @click="openModal()"
-            class="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white text-sm font-medium px-4 py-2.5 rounded-lg transition-colors duration-150">
-            <span class="text-lg leading-none">+</span> Tambah Transaksi
-        </button>
-    </div>
+<div class="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4 sm:gap-4">
+    <x-stat-card label="Transaksi Aktif" :value="$stats['aktif']" :hint="($stats['per_status']['lunas'] ?? 0) . ' lunas · ' . ($stats['per_status']['batal'] ?? 0) . ' batal'" tone="dark" icon="cart"/>
+    <x-stat-card label="Nilai Penjualan" :value="rupiah_singkat($stats['nilai_jual'])" :hint="rupiah($stats['nilai_jual'])" icon="tag"/>
+    <x-stat-card label="Pokok Terbayar" :value="rupiah_singkat($stats['terbayar'])" :hint="rupiah($stats['terbayar'])" icon="check-circle"/>
+    <x-stat-card label="Piutang" :value="rupiah_singkat($stats['piutang'])" :hint="rupiah($stats['piutang'])" tone="gold" icon="wallet"/>
+</div>
 
-    {{-- Stat cards --}}
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        @foreach ([
-            ['label' => 'Total Transaksi', 'value' => $stats['total']],
-            ['label' => 'Reservasi', 'value' => $stats['reservasi']],
-            ['label' => 'Booking', 'value' => $stats['booking']],
-            ['label' => 'DP', 'value' => $stats['dp']],
-        ] as $card)
-            <div class="bg-white rounded-xl border border-slate-200 p-4">
-                <p class="text-xs font-medium text-slate-500 uppercase tracking-wide">{{ $card['label'] }}</p>
-                <p class="text-2xl font-semibold text-slate-800 mt-1">{{ $card['value'] }}</p>
-            </div>
-        @endforeach
-    </div>
+<div class="mb-4 flex gap-2 overflow-x-auto pb-1">
+    @php $semua = collect(\App\Models\TransaksiPenjualan::STATUS); @endphp
+    <a href="{{ request()->fullUrlWithQuery(['status' => null, 'page' => null]) }}" @class(['btn btn-sm', 'btn-primary' => ! request('status'), 'btn-secondary' => request('status')])>Semua</a>
+    @foreach ($semua as $s)
+        <a href="{{ request()->fullUrlWithQuery(['status' => $s, 'page' => null]) }}" @class(['btn btn-sm', 'btn-primary' => request('status') === $s, 'btn-secondary' => request('status') !== $s])>
+            {{ \App\Support\Status::label($s) }} <span class="opacity-60">{{ $stats['per_status'][$s] ?? 0 }}</span>
+        </a>
+    @endforeach
+</div>
 
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <div class="bg-white rounded-xl border border-slate-200 p-4">
-            <p class="text-xs font-medium text-slate-500 uppercase tracking-wide">Total Nilai Jual</p>
-            <p class="text-2xl font-semibold text-slate-800 mt-1">Rp{{ number_format($stats['total_nilai_jual'], 0, ',', '.') }}</p>
-        </div>
-        <div class="bg-white rounded-xl border border-slate-200 p-4">
-            <p class="text-xs font-medium text-slate-500 uppercase tracking-wide">Total Bayar</p>
-            <p class="text-2xl font-semibold text-emerald-600 mt-1">Rp{{ number_format($stats['total_bayar'], 0, ',', '.') }}</p>
-        </div>
-        <div class="bg-white rounded-xl border border-slate-200 p-4">
-            <p class="text-xs font-medium text-slate-500 uppercase tracking-wide">Total Sisa</p>
-            <p class="text-2xl font-semibold text-red-500 mt-1">Rp{{ number_format($stats['total_sisa'], 0, ',', '.') }}</p>
-        </div>
-        <div class="bg-white rounded-xl border border-slate-200 p-4">
-            <p class="text-xs font-medium text-slate-500 uppercase tracking-wide">Transaksi Lunas</p>
-            <p class="text-2xl font-semibold text-slate-800 mt-1">{{ $stats['lunas'] }}</p>
-        </div>
-    </div>
+<div class="card">
+    <x-filter-bar placeholder="Cari ID, konsumen, atau kavling…">
+        @if (request('status'))<input type="hidden" name="status" value="{{ request('status') }}">@endif
+        <x-select name="jenis" :options="['cash' => 'Cash', 'angsuran' => 'Angsuran']" :value="request('jenis')" placeholder="Semua metode" class="sm:w-40"/>
+        <x-select name="agen" :options="$agens" :value="request('agen')" placeholder="Semua agen" class="sm:w-44"/>
+        <input type="month" name="bulan" value="{{ request('bulan') }}" class="form-input col-span-2 sm:w-44" title="Bulan transaksi">
+    </x-filter-bar>
 
-    {{-- Filter --}}
-    <form method="GET" class="bg-white rounded-xl border border-slate-200 p-5 mb-6 grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div>
-            <label class="text-xs font-medium text-slate-500">Cari Transaksi</label>
-            <input type="text" name="cari" value="{{ request('cari') }}" placeholder="Cari ID transaksi..."
-                class="mt-1 w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-slate-800 focus:border-slate-800">
+    @if ($transaksis->isEmpty())
+        <x-empty-state title="Belum ada transaksi" message="{{ request()->query() ? 'Tidak ada transaksi yang cocok dengan filter.' : 'Mulai dengan membuat transaksi penjualan pertama.' }}">
+            <a href="{{ route('transaksi-penjualan.create') }}" class="btn btn-primary"><x-icon name="plus" class="h-4 w-4"/> Transaksi Baru</a>
+        </x-empty-state>
+    @else
+        <div class="table-wrap">
+            <table class="table">
+                <thead>
+                    <tr><th>ID / Tanggal</th><th>Konsumen</th><th>Kavling</th><th>Metode</th><th class="text-right">Harga Jual</th><th class="text-right">Terbayar</th><th class="text-right">Sisa</th><th>Status</th><th></th></tr>
+                </thead>
+                <tbody>
+                    @foreach ($transaksis as $t)
+                        <tr>
+                            <td>
+                                <a href="{{ route('transaksi-penjualan.show', $t) }}" class="font-semibold text-forest-700 hover:underline">{{ $t->kode_transaksi }}</a>
+                                <div class="text-xs text-slate-500">{{ tanggal($t->tanggal) }}</div>
+                            </td>
+                            <td>
+                                <span class="font-medium text-slate-900">{{ $t->konsumen->nama_lengkap }}</span>
+                                <div class="text-xs text-slate-500">{{ $t->agen ? 'Agen ' . $t->agen->nama_agen : 'Tanpa agen' }}</div>
+                            </td>
+                            <td class="font-medium">{{ $t->kavling->kode_kavling }}</td>
+                            <td class="whitespace-nowrap">{{ $t->isAngsuran() ? "Angsuran {$t->tenor} bln" : 'Cash' }}</td>
+                            <td class="text-right tabular-nums">{{ rupiah($t->nilai_jual) }}</td>
+                            <td class="text-right tabular-nums">
+                                {{ rupiah($t->pokokTerbayar()) }}
+                                @unless ($t->isBatal())
+                                    <div class="mt-1 ml-auto h-1 w-20 overflow-hidden rounded-full bg-slate-100"><div class="h-full bg-forest-500" style="width: {{ $t->persenLunas() }}%"></div></div>
+                                @endunless
+                            </td>
+                            <td class="text-right tabular-nums">{{ $t->isBatal() ? '—' : rupiah($t->sisa()) }}</td>
+                            <td><x-badge :status="$t->status"/></td>
+                            <td class="text-right"><a href="{{ route('transaksi-penjualan.show', $t) }}" class="btn-icon" title="Detail"><x-icon name="chevron-right"/></a></td>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
         </div>
-        <div>
-            <label class="text-xs font-medium text-slate-500">Status</label>
-            <select name="status" class="mt-1 w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
-                <option value="semua">Semua</option>
-                <option value="reservasi" @selected(request('status')=='reservasi')>Reservasi</option>
-                <option value="booking" @selected(request('status')=='booking')>Booking</option>
-                <option value="dp" @selected(request('status')=='dp')>DP</option>
-                <option value="lunas" @selected(request('status')=='lunas')>Lunas</option>
-            </select>
-        </div>
-        <div>
-            <label class="text-xs font-medium text-slate-500">Jenis</label>
-            <select name="jenis" class="mt-1 w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
-                <option value="semua">Semua</option>
-                <option value="cash" @selected(request('jenis')=='cash')>Cash</option>
-                <option value="angsuran" @selected(request('jenis')=='angsuran')>Angsuran</option>
-            </select>
-        </div>
-        <div>
-            <label class="text-xs font-medium text-slate-500">Periode</label>
-            <div class="flex gap-2 mt-1">
-                <input type="date" name="periode" value="{{ request('periode') }}"
-                    class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
-                <a href="{{ route('transaksi-penjualan.index') }}"
-                    class="flex items-center gap-1 border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-50">
-                    Reset
-                </a>
-            </div>
-        </div>
-    </form>
-
-    {{-- Table --}}
-    <div class="bg-white rounded-xl border border-slate-200 overflow-x-auto">
-        <table class="w-full text-sm">
-            <thead>
-                <tr class="text-left text-xs text-slate-500 uppercase border-b border-slate-200">
-                    <th class="px-4 py-3">ID Transaksi</th>
-                    <th class="px-4 py-3">Tanggal</th>
-                    <th class="px-4 py-3">ID Konsumen</th>
-                    <th class="px-4 py-3">Nama Konsumen</th>
-                    <th class="px-4 py-3">Kavling</th>
-                    <th class="px-4 py-3">Agen</th>
-                    <th class="px-4 py-3">Status</th>
-                    <th class="px-4 py-3">Jenis</th>
-                    <th class="px-4 py-3 text-right">Nilai Jual</th>
-                    <th class="px-4 py-3 text-right">Sisa</th>
-                </tr>
-            </thead>
-            <tbody>
-                @forelse ($transaksis as $t)
-                    <tr class="border-b border-slate-100 hover:bg-slate-50">
-                        <td class="px-4 py-3 font-medium text-slate-800">{{ $t->kode_transaksi }}</td>
-                        <td class="px-4 py-3 text-slate-600">{{ $t->tanggal->format('d M Y') }}</td>
-                        <td class="px-4 py-3 text-slate-600">{{ $t->konsumen->id_konsumen ?? '-' }}</td>
-                        <td class="px-4 py-3 text-slate-700">{{ $t->konsumen->nama_lengkap ?? '-' }}</td>
-                        <td class="px-4 py-3 font-medium text-slate-800">{{ $t->kavling->kode_kavling ?? '-' }}</td>
-                        <td class="px-4 py-3 text-slate-600">{{ $t->agen->nama_agen ?? '-' }}</td>
-                        <td class="px-4 py-3">
-                            @php
-                                $badge = [
-                                    'reservasi' => 'bg-amber-100 text-amber-700',
-                                    'booking' => 'bg-orange-100 text-orange-700',
-                                    'dp' => 'bg-blue-100 text-blue-700',
-                                    'lunas' => 'bg-green-100 text-green-700',
-                                ][$t->status];
-                            @endphp
-                            <span class="px-2.5 py-1 rounded-full text-xs font-medium {{ $badge }}">{{ strtoupper($t->status) }}</span>
-                        </td>
-                        <td class="px-4 py-3">
-                            @if ($t->jenis_pembayaran === 'cash')
-                                <span class="px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">CASH</span>
-                            @else
-                                <span class="px-2.5 py-1 rounded-full text-xs font-medium bg-slate-200 text-slate-700">ANGSURAN</span>
-                            @endif
-                        </td>
-                        <td class="px-4 py-3 text-right font-medium text-slate-800">Rp{{ number_format($t->nilai_jual, 0, ',', '.') }}</td>
-                        <td class="px-4 py-3 text-right {{ $t->sisa_pembayaran > 0 ? 'text-red-500' : 'text-green-600' }}">
-                            Rp{{ number_format($t->sisa_pembayaran, 0, ',', '.') }}
-                        </td>
-                    </tr>
-                @empty
-                    <tr><td colspan="10" class="px-4 py-8 text-center text-slate-400">Belum ada transaksi.</td></tr>
-                @endforelse
-            </tbody>
-        </table>
-    </div>
-
-    <div class="mt-4">{{ $transaksis->links() }}</div>
-
-    {{-- Modal popup --}}
-    @include('transaksi-penjualan._modal-form')
+        @if ($transaksis->hasPages())<div class="border-t border-slate-100 px-4 py-3">{{ $transaksis->links() }}</div>@endif
+    @endif
 </div>
 @endsection
-
-@push('scripts')
-    <script src="{{ asset('js/transaksi-penjualan.js') }}"></script>
-    <script>
-        const KAVLINGS = @json($kavlings);
-        const AGENS = @json($agens);
-        const KODE_BARU = @json($kodeBaru);
-        const URL_CARI_KONSUMEN = @json(route('transaksi-penjualan.cari-konsumen'));
-        const URL_STORE = @json(route('transaksi-penjualan.store'));
-    </script>
-@endpush
