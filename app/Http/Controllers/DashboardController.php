@@ -2,104 +2,117 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
+use App\Models\Agen;
+use App\Models\KasTransaksi;
+use App\Models\Kavling;
+use App\Models\Pembayaran;
+use App\Models\Rab;
+use App\Models\TransaksiPenjualan;
+use App\Services\AlokasiService;
+use App\Services\AngsuranService;
+use App\Services\HargaService;
+use App\Services\KomisiService;
+use App\Services\LeadService;
+use App\Services\Pengaturan;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 
+/** Semua angka dashboard diambil dari database (padanan sheet DASHBOARD di Excel). */
 class DashboardController extends Controller
 {
-    public function index(Request $request)
+    public function index(HargaService $harga, AlokasiService $alokasi, LeadService $lead, KomisiService $komisi, AngsuranService $angsuran)
     {
-        // =====================================================
-        // GANTI SEMUA DATA DI BAWAH INI DENGAN QUERY DARI MODEL/DB ASLI
-        // (Kavling, Transaksi, RAB, KasProyek, Agen, dst)
-        // =====================================================
+        $jumlahStatus = Kavling::selectRaw('status, COUNT(*) n')->groupBy('status')->pluck('n', 'status');
+        $totalKavling = (int) $jumlahStatus->sum();
 
-        $stats = [
-            'total_kavling'          => 14,
-            'tersedia'               => 14,
-            'tersedia_percent'       => 100,
-            'reservasi'              => 0,
-            'booking'                => 0,
-            'dp'                     => 0,
-            'terjual'                => 0,
+        $aktif = TransaksiPenjualan::aktif();
+        $nilaiJual = (float) (clone $aktif)->sum('nilai_jual');
+        $pokok = (float) DB::table('pembayarans')->join('transaksi_penjualans as t', 't.id', '=', 'pembayarans.transaksi_id')
+            ->where('t.status', '!=', 'batal')->whereIn('pembayarans.jenis', TransaksiPenjualan::JENIS_POKOK)->sum('pembayarans.nominal');
+        $kasMasuk = (float) KasTransaksi::where('jenis', 'masuk')->sum('nominal');
+        $kasKeluar = (float) KasTransaksi::where('jenis', 'keluar')->sum('nominal');
+        $anggaranRab = (float) Rab::sum('anggaran');
+        $realisasiRab = (float) KasTransaksi::where('jenis', 'keluar')->whereNotNull('rab_id')->sum('nominal');
 
-            'harga_aktif'            => 500000,
-            'total_penjualan'        => 0,
-            'pembayaran_masuk'       => 0,
+        // Deret 12 bulan terakhir
+        $mulai = now()->startOfMonth()->subMonths(11);
+        $bulan = collect(range(0, 11))->map(fn ($i) => $mulai->copy()->addMonths($i)->format('Y-m'));
+        $perBulan = fn ($q, string $kolomTgl, string $kolomNilai) => $q->where($kolomTgl, '>=', $mulai)
+            ->selectRaw("DATE_FORMAT({$kolomTgl}, '%Y-%m') b, SUM({$kolomNilai}) n")->groupBy('b')->pluck('n', 'b');
+        $jualBulan = $perBulan(TransaksiPenjualan::aktif(), 'tanggal', 'nilai_jual');
+        $unitBulan = TransaksiPenjualan::aktif()->where('tanggal', '>=', $mulai)->selectRaw("DATE_FORMAT(tanggal, '%Y-%m') b, COUNT(*) n")->groupBy('b')->pluck('n', 'b');
+        $masukBulan = $perBulan(KasTransaksi::where('jenis', 'masuk'), 'tanggal', 'nominal');
+        $keluarBulan = $perBulan(KasTransaksi::where('jenis', 'keluar'), 'tanggal', 'nominal');
 
-            'piutang'                => 0,
-            'saldo_kas'              => -500000,
-            'realisasi_rab'          => 500000,
+        // Agen teratas: closing (lead) & nilai penjualan
+        $totalLead = $lead->totalPerAgen();
+        $agenTop = Agen::where('aktif', true)->get()
+            ->map(fn ($a) => (object) [
+                'agen'      => $a,
+                'lead'      => (int) ($totalLead[$a->id]->lead ?? 0),
+                'prospek'   => (int) ($totalLead[$a->id]->prospek ?? 0),
+                'closing'   => (int) ($totalLead[$a->id]->closing ?? 0),
+                'penjualan' => $komisi->ringkasan($a)['nilai_penjualan'],
+            ])
+            ->sortByDesc(fn ($x) => [$x->closing, $x->penjualan])->take(5)->values();
 
-            'total_pemasukan'        => 0,
-            'total_pengeluaran'      => 500000,
-            'target_rab'             => 500000,
-            'realisasi_rab_percent'  => 100,
-        ];
+        $funnel = $lead->rekapPerAgen(now()->startOfMonth(), now()->endOfMonth());
 
-        $statusKavling = [
-            ['label' => 'Tersedia',  'value' => 14, 'percent' => 100, 'color' => '#16a34a'],
-            ['label' => 'Reservasi', 'value' => 0,  'percent' => 0,   'color' => '#eab308'],
-            ['label' => 'Booking',   'value' => 0,  'percent' => 0,   'color' => '#64748b'],
-            ['label' => 'DP',       'value' => 0,  'percent' => 0,   'color' => '#334155'],
-            ['label' => 'Terjual',   'value' => 0,  'percent' => 0,   'color' => '#0f172a'],
-        ];
+        // Piutang terlambat
+        $terlambat = TransaksiPenjualan::aktif()->where('jenis_pembayaran', 'angsuran')->where('status', '!=', 'lunas')
+            ->with(['konsumen', 'kavling', 'pembayarans', 'jadwalAngsurans'])->get()
+            ->map(fn ($t) => (object) ['t' => $t])
+            ->map(function ($x) use ($angsuran) {
+                $r = $angsuran->ringkasan($x->t);
+                $x->tunggakan = $r['tunggakan'];
+                $x->hari = $r['hari_telat_maks'];
 
-        $baseline = [
-            ['label' => 'Luas Lahan',         'value' => '17,34 are'],
-            ['label' => 'Jalan Dalam',        'value' => '5,3 m'],
-            ['label' => 'Prima (A1–A7)',      'value' => '7 x 14 m'],
-            ['label' => 'Standard (B1–B6)',   'value' => '7 x 10 m'],
-            ['label' => 'Tipe B7 (Hook)',     'value' => 'TBD'],
-            ['label' => 'Legal Lahan',        'value' => 'Girik (Proses AJB)', 'badge' => true],
-        ];
+                return $x;
+            })
+            ->where('tunggakan', '>', 0)->sortByDesc('hari')->take(5)->values();
 
-        $transaksiTerbaru = [
-            ['kode' => 'TRX-2026-0005', 'nama' => 'Budi Santoso', 'kavling' => 'A1', 'nominal' => 49000000, 'status' => 'DP 10%'],
-            ['kode' => 'TRX-2026-0004', 'nama' => 'Siti Aminah',  'kavling' => 'B2', 'nominal' => 10000000, 'status' => 'Booking'],
-            ['kode' => 'TRX-2026-0003', 'nama' => 'Ahmad R.',     'kavling' => 'A3', 'nominal' => 2000000,  'status' => 'Reservasi'],
-        ];
+        $pos = $alokasi->posisiPos();
 
-        $inOutChart = ['in' => 0, 'out' => 500000];
-
-        $agenTop = [
-            ['id' => 'AG-004', 'nama' => 'Sara Haque',   'nilai_closing' => 'Rp 360M', 'funnel' => '12 / 8 / 4', 'top' => true],
-            ['id' => 'AG-001', 'nama' => 'Ayesha Rahman', 'nilai_closing' => 'Rp 315M', 'funnel' => '15 / 5 / 3'],
-            ['id' => 'AG-005', 'nama' => 'Tariq Alam',    'nilai_closing' => 'Rp 270M', 'funnel' => '10 / 4 / 2'],
-            ['id' => 'AG-002', 'nama' => 'James Karim',   'nilai_closing' => 'Rp 225M', 'funnel' => '8 / 3 / 2'],
-            ['id' => 'AG-003', 'nama' => 'Nadia Hossain', 'nilai_closing' => 'Rp 180M', 'funnel' => '5 / 2 / 1'],
-        ];
-
-        $penjualanChart = [
-            'labels' => ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun'],
-            'values' => [150, 220, 175, 310, 270, 360],
-        ];
-
-        $hargaChart = [
-            'labels' => ['Tahap 1', 'Tahap 2', 'Tahap 3', 'Tahap 4', 'Tahap 5'],
-            'values' => [500000, 550000, 600000, 650000, 700000],
-        ];
-
-        $alokasiKas = [
-            ['label' => 'Tanah',        'percent' => 50, 'color' => '#0f172a'],
-            ['label' => 'Legal/Infra',  'percent' => 25, 'color' => '#16a34a'],
-            ['label' => 'Marketing',    'percent' => 10, 'color' => '#eab308'],
-            ['label' => 'Cadangan',     'percent' => 10, 'color' => '#94a3b8'],
-            ['label' => 'Ops',          'percent' => 5,  'color' => '#475569'],
-        ];
-
-        $profitSharing = ['pengelola' => 80, 'mitra' => 20];
-
-        return view('dashboard', compact(
-            'stats',
-            'statusKavling',
-            'baseline',
-            'transaksiTerbaru',
-            'inOutChart',
-            'agenTop',
-            'penjualanChart',
-            'hargaChart',
-            'alokasiKas',
-            'profitSharing'
-        ));
+        return view('dashboard', [
+            'status'      => $jumlahStatus,
+            'totalKavling' => $totalKavling,
+            'stats'       => [
+                'harga_aktif'  => $harga->hargaAktif(),
+                'tahap'        => $harga->nomorTahapAktif(),
+                'jumlah_tahap' => (int) Pengaturan::get('jumlah_tahap', 1),
+                'menuju_naik'  => $harga->nomorTahapAktif() < (int) Pengaturan::get('jumlah_tahap', 1)
+                    ? $harga->nomorTahapAktif() * (int) Pengaturan::get('unit_per_kenaikan', 1) - $harga->jumlahTerjual() : null,
+                'nilai_jual'   => $nilaiJual,
+                'transaksi'    => (clone $aktif)->count(),
+                'uang_masuk'   => (float) Pembayaran::whereHas('transaksi', fn ($q) => $q->aktif())->sum('nominal'),
+                'pokok'        => $pokok,
+                'piutang'      => $nilaiJual - $pokok,
+                'kas_masuk'    => $kasMasuk,
+                'kas_keluar'   => $kasKeluar,
+                'saldo'        => $kasMasuk - $kasKeluar,
+                'anggaran_rab' => $anggaranRab,
+                'realisasi_rab' => $realisasiRab,
+            ],
+            'grafik'      => [
+                'label'  => $bulan->map(fn ($b) => tanggal(Carbon::createFromFormat('Y-m', $b)->startOfMonth(), 'M y'))->all(),
+                'jual'   => $bulan->map(fn ($b) => (float) ($jualBulan[$b] ?? 0))->all(),
+                'unit'   => $bulan->map(fn ($b) => (int) ($unitBulan[$b] ?? 0))->all(),
+                'masuk'  => $bulan->map(fn ($b) => (float) ($masukBulan[$b] ?? 0))->all(),
+                'keluar' => $bulan->map(fn ($b) => (float) ($keluarBulan[$b] ?? 0))->all(),
+            ],
+            'transaksiTerbaru' => TransaksiPenjualan::with(['konsumen', 'kavling'])->denganRingkasan()->latest('tanggal')->latest('id')->limit(6)->get(),
+            'agenTop'     => $agenTop,
+            'funnel'      => ['lead' => $funnel->sum('lead'), 'prospek' => $funnel->sum('prospek'), 'closing' => $funnel->sum('closing')],
+            'terlambat'   => $terlambat,
+            'pos'         => $pos,
+            'laba'        => $alokasi->kelayakanLaba($pos),
+            'baseline'    => [
+                'Luas Lahan'  => angka(Pengaturan::get('luas_lahan_are'), 2) . ' are',
+                'Jalan Dalam' => angka(Pengaturan::get('lebar_jalan_m'), 1) . ' m',
+                'Prima'       => Kavling::where('tipe', 'Prima')->count() . ' kavling',
+                'Standard'    => Kavling::where('tipe', 'like', 'Standard%')->count() . ' kavling',
+                'Legal Lahan' => Pengaturan::get('status_legal_lahan') ?? '—',
+            ],
+        ]);
     }
 }
