@@ -22,10 +22,10 @@
         f: @js($formBayarAwal),
         saran: @js($saran),
         get action() { return this.f.id ? '{{ url('transaksi-penjualan/' . $t->id . '/pembayaran') }}/' + this.f.id : '{{ route('pembayaran.store', $t) }}' },
-        baru() { this.f = { ...@js($formBayarAwal), id: null, jenis: @js($jenisAwal), nominal: this.saran[@js($jenisAwal)] }; this.sinkronUang(); $dispatch('open-modal', 'bayar') },
-        ubah(p) { this.f = { ...p }; this.sinkronUang(); $dispatch('open-modal', 'bayar') },
+        baru() { this.f = { ...@js($formBayarAwal), id: null, jenis: @js($jenisAwal), nominal: this.saran[@js($jenisAwal)] }; this.sinkronUang(); this.$dispatch('open-modal', 'bayar') },
+        ubah(p) { this.f = { ...p }; this.sinkronUang(); this.$dispatch('open-modal', 'bayar') },
         pilihJenis() { if (!this.f.id) { this.f.nominal = this.saran[this.f.jenis] || ''; this.sinkronUang() } },
-        sinkronUang() { this.$nextTick(() => $dispatch('set-money', { name: 'nominal', value: this.f.nominal })) },
+        sinkronUang() { this.$nextTick(() => this.$dispatch('set-money', { name: 'nominal', value: this.f.nominal })) },
      }">
 
 <x-page-header :title="'Transaksi ' . $t->kode_transaksi"

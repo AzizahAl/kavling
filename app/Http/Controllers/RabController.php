@@ -2,101 +2,63 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AlokasiKas;
 use App\Models\Rab;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class RabController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Rab::query();
+        $semua = Rab::denganRealisasi()->with('kasKeluar')->orderBy('id')->get();
 
-        if ($request->filled('cari')) {
-            $cari = $request->cari;
-            $query->where(function ($q) use ($cari) {
-                $q->where('kategori', 'like', "%{$cari}%")
-                  ->orWhere('uraian', 'like', "%{$cari}%");
-            });
-        }
+        $rabs = $semua
+            ->when($request->filled('kategori'), fn ($c) => $c->where('kategori', $request->kategori))
+            ->when($request->filled('status'), fn ($c) => $c->filter(fn ($r) => $r->status === $request->status))
+            ->when($request->filled('cari'), fn ($c) => $c->filter(fn ($r) => str_contains(mb_strtolower("{$r->kategori} {$r->uraian}"), mb_strtolower($request->cari))));
 
-        if ($request->filled('kategori') && $request->kategori !== 'semua') {
-            $query->where('kategori', $request->kategori);
-        }
-
-        if ($request->filled('status') && $request->status !== 'semua') {
-            $query->where('status_realisasi', $request->status);
-        }
-
-        $rabs = $query->latest()->get();
-
-        $totalAnggaran  = $rabs->sum('anggaran');
-        $totalRealisasi = $rabs->sum('realisasi');
-        $totalSelisih   = $totalAnggaran - $totalRealisasi;
-        $jumlahSesuai   = $rabs->filter(fn ($r) => $r->status_keuangan === 'sesuai')->count();
-        $jumlahBelum    = $rabs->filter(fn ($r) => $r->status_keuangan === 'belum')->count();
-
-        $kategoriList = Rab::select('kategori')->distinct()->orderBy('kategori')->pluck('kategori');
-
-        return view('rab.index', compact(
-            'rabs',
-            'totalAnggaran',
-            'totalRealisasi',
-            'totalSelisih',
-            'jumlahSesuai',
-            'jumlahBelum',
-            'kategoriList'
-        ));
+        return view('rab.index', [
+            'rabs'           => $rabs,
+            'totalAnggaran'  => (float) $semua->sum('anggaran'),
+            'totalRealisasi' => (float) $semua->sum('realisasi_nilai'),
+            'jumlahStatus'   => $semua->countBy('status'),
+            'kategoriList'   => $semua->pluck('kategori')->unique()->values(),
+        ]);
     }
 
     public function store(Request $request)
     {
-        $data = $request->validate([
-            'kategori'         => 'required|string|max:100',
-            'uraian'           => 'required|string|max:255',
-            'anggaran'         => 'required|numeric|min:0',
-            'status_realisasi' => 'required|in:belum_direalisasikan,sudah_direalisasikan',
-            'catatan'          => 'nullable|string',
-        ]);
+        $rab = Rab::create($this->validasi($request));
 
-        $data['realisasi'] = 0;
-
-        Rab::create($data);
-
-        return redirect()->route('rab.index')->with('success', 'Data RAB berhasil ditambahkan.');
+        return back()->with('success', "Item RAB \"{$rab->uraian}\" ditambahkan.");
     }
 
     public function update(Request $request, Rab $rab)
     {
-        $data = $request->validate([
-            'kategori'         => 'required|string|max:100',
-            'uraian'           => 'required|string|max:255',
-            'anggaran'         => 'required|numeric|min:0',
-            'realisasi'        => 'nullable|numeric|min:0',
-            'status_realisasi' => 'required|in:belum_direalisasikan,sudah_direalisasikan',
-            'catatan'          => 'nullable|string',
-        ]);
+        $rab->update($this->validasi($request));
 
-        $data['realisasi'] = $data['realisasi'] ?? 0;
-
-        $rab->update($data);
-
-        return redirect()->route('rab.index')->with('success', 'Data RAB berhasil diperbarui.');
+        return back()->with('success', "Item RAB \"{$rab->uraian}\" diperbarui.");
     }
 
     public function destroy(Rab $rab)
     {
+        if ($rab->kasKeluar()->exists()) {
+            return back()->with('error', "\"{$rab->uraian}\" sudah memiliki realisasi di Kas Proyek sehingga tidak bisa dihapus.");
+        }
         $rab->delete();
 
-        return redirect()->route('rab.index')->with('success', 'Data RAB berhasil dihapus.');
+        return back()->with('success', 'Item RAB dihapus.');
     }
 
-    public function verifikasi(Rab $rab)
+    private function validasi(Request $request): array
     {
-        $rab->update([
-            'realisasi'        => $rab->anggaran,
-            'status_realisasi' => 'sudah_direalisasikan',
-        ]);
-
-        return redirect()->route('rab.index')->with('success', 'RAB ditandai sesuai realisasi.');
+        return $request->validate([
+            'kategori' => ['required', 'string', 'max:100'],
+            'pos'      => ['required', Rule::in(array_keys(AlokasiKas::POS))],
+            'uraian'   => ['required', 'string', 'max:255'],
+            'anggaran' => ['nullable', 'numeric', 'min:0'],
+            'catatan'  => ['nullable', 'string', 'max:1000'],
+        ], [], ['pos' => 'pos alokasi']);
     }
 }

@@ -57,7 +57,9 @@ if (! function_exists('persen')) {
     function persen($nilai, bool $pecahan = true, int $desimal = 0): string
     {
         $n = (float) ($nilai ?? 0) * ($pecahan ? 100 : 1);
+        $teks = number_format($n, $desimal, ',', '.');
 
-        return rtrim(rtrim(number_format($n, $desimal, ',', '.'), '0'), ',') . '%';
+        // Buang nol di belakang koma saja (12,50 → 12,5; 50 tetap 50)
+        return ($desimal > 0 ? rtrim(rtrim($teks, '0'), ',') : $teks) . '%';
     }
 }

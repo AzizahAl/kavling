@@ -1,371 +1,148 @@
 @extends('layouts.app')
+@section('title', 'Kas Proyek')
+
+@php
+    $kosong = ['id' => null, 'tanggal' => now()->toDateString(), 'jenis' => 'keluar', 'kategori' => '', 'rab_id' => '', 'pos' => '', 'uraian' => '', 'nominal' => '', 'sumber' => '', 'catatan' => ''];
+    $awal = old('_form') === 'kas' ? array_merge($kosong, request()->old(), ['id' => old('_id')]) : $kosong;
+    $posRab = $rabs->pluck('pos', 'id');
+@endphp
 
 @section('content')
-<div x-data="kasPage()" class="p-6">
+<div x-data="{
+        f: @js($awal), kosong: @js($kosong), posRab: @js($posRab),
+        get action() { return this.f.id ? '{{ url('kas-proyek') }}/' + this.f.id : '{{ route('kas-proyek.store') }}' },
+        buka(data) { this.f = { ...data }; this.$dispatch('open-modal', 'kas'); this.$nextTick(() => this.$dispatch('set-money', { name: 'nominal', value: this.f.nominal })) },
+        pilihRab() { if (this.f.rab_id && this.posRab[this.f.rab_id]) this.f.pos = this.posRab[this.f.rab_id] },
+     }">
 
-    <div class="flex items-start justify-between mb-6">
-        <div>
-            <h1 class="text-2xl font-bold text-gray-900">Kas Proyek</h1>
-            <p class="text-sm text-gray-500">Monitor seluruh arus kas masuk dan keluar proyek.</p>
-        </div>
-        <button @click="openTambah()"
-            class="flex items-center gap-2 bg-gray-900 hover:bg-gray-800 text-white text-sm font-medium px-4 py-2 rounded-xl shadow-sm transition">
-            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-            </svg>
-            Tambah Transaksi
-        </button>
-    </div>
+<x-page-header title="Kas Proyek" subtitle="Buku kas proyek. Pembayaran konsumen, refund, dan komisi tercatat otomatis."
+               :breadcrumbs="['Keuangan' => null, 'Kas Proyek' => null]">
+    <x-slot:actions>
+        <button type="button" class="btn btn-secondary" x-on:click="buka({ ...kosong, jenis: 'masuk' })"><x-icon name="plus" class="h-4 w-4"/> Kas Masuk</button>
+        <button type="button" class="btn btn-primary" x-on:click="buka({ ...kosong })"><x-icon name="plus" class="h-4 w-4"/> Pengeluaran</button>
+    </x-slot:actions>
+</x-page-header>
 
-    @if (session('success'))
-        <div class="mb-4 rounded-xl bg-green-50 border border-green-200 text-green-700 text-sm px-4 py-2">
-            {{ session('success') }}
-        </div>
-    @endif
-
-    <!-- Summary Cards -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <div class="bg-white border rounded-2xl p-5 flex items-center justify-between">
-            <div>
-                <p class="text-sm text-gray-500">Total Masuk</p>
-                <p class="text-2xl font-bold text-gray-900 mt-1">Rp{{ number_format($totalMasuk, 0, ',', '.') }}</p>
-            </div>
-            <div class="w-11 h-11 rounded-xl bg-green-50 text-green-600 flex items-center justify-center">
-                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m0 0l-6.75-6.75M12 19.5l6.75-6.75" />
-                </svg>
-            </div>
-        </div>
-        <div class="bg-white border rounded-2xl p-5 flex items-center justify-between">
-            <div>
-                <p class="text-sm text-gray-500">Total Keluar</p>
-                <p class="text-2xl font-bold text-gray-900 mt-1">Rp{{ number_format($totalKeluar, 0, ',', '.') }}</p>
-            </div>
-            <div class="w-11 h-11 rounded-xl bg-red-50 text-red-500 flex items-center justify-center">
-                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 19.5v-15m0 0l-6.75 6.75M12 4.5l6.75 6.75" />
-                </svg>
-            </div>
-        </div>
-        <div class="bg-white border rounded-2xl p-5 flex items-center justify-between">
-            <div>
-                <p class="text-sm text-gray-500">Saldo Proyek</p>
-                <p class="text-2xl font-bold text-green-600 mt-1">Rp{{ number_format($saldoProyek, 0, ',', '.') }}</p>
-            </div>
-            <div class="w-11 h-11 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-4.5-9h15a1.5 1.5 0 011.5 1.5v9a1.5 1.5 0 01-1.5 1.5h-15a1.5 1.5 0 01-1.5-1.5v-9a1.5 1.5 0 011.5-1.5z" />
-                </svg>
-            </div>
-        </div>
-    </div>
-
-    <!-- Tabs + Search -->
-    <form method="GET" class="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4">
-        <div class="flex bg-gray-100 rounded-xl p-1 w-fit">
-            @foreach (['semua' => 'Semua', 'masuk' => 'Masuk', 'keluar' => 'Keluar'] as $val => $label)
-                <button type="submit" name="tab" value="{{ $val }}"
-                    class="px-4 py-1.5 text-sm rounded-lg font-medium transition
-                        {{ request('tab', 'semua') == $val ? 'bg-white shadow text-gray-900' : 'text-gray-500' }}">
-                    {{ $label }}
-                </button>
-            @endforeach
-        </div>
-        <div class="flex gap-3">
-            <input type="text" name="cari" value="{{ request('cari') }}" placeholder="Cari transaksi..."
-                class="border rounded-xl px-3.5 py-2 text-sm w-64">
-            <select name="kategori" onchange="this.form.submit()" class="border rounded-xl px-3.5 py-2 text-sm">
-                <option value="semua">Semua Kategori</option>
-                @foreach ($kategoriList as $k)
-                    <option value="{{ $k }}" @selected(request('kategori') == $k)>{{ $k }}</option>
-                @endforeach
-            </select>
-            <button type="submit" class="border rounded-xl px-4 py-2 text-sm text-gray-600">Filter</button>
-        </div>
-    </form>
-
-    <!-- Table -->
-    <div class="bg-white border rounded-2xl overflow-hidden">
-        <table class="w-full text-sm">
-            <thead class="bg-gray-50 text-gray-500 text-xs uppercase">
-                <tr>
-                    <th class="text-left px-4 py-3">Tanggal</th>
-                    <th class="text-left px-4 py-3">Kode</th>
-                    <th class="text-left px-4 py-3">Kategori</th>
-                    <th class="text-left px-4 py-3">Uraian</th>
-                    <th class="text-right px-4 py-3">Masuk</th>
-                    <th class="text-right px-4 py-3">Keluar</th>
-                    <th class="text-right px-4 py-3">Saldo</th>
-                    <th class="text-left px-4 py-3">Sumber/Transaksi</th>
-                    <th class="text-left px-4 py-3">Catatan</th>
-                    <th class="text-center px-4 py-3">Aksi</th>
-                </tr>
-            </thead>
-            <tbody class="divide-y">
-                @forelse ($transaksis as $t)
-                    <tr>
-                        <td class="px-4 py-3 whitespace-nowrap">{{ $t->tanggal->translatedFormat('d M Y') }}</td>
-                        <td class="px-4 py-3 font-medium text-gray-700">{{ $t->kode }}</td>
-                        <td class="px-4 py-3">
-                            <span class="text-xs font-medium px-2 py-1 rounded-full bg-gray-100 text-gray-600">{{ $t->kategori }}</span>
-                        </td>
-                        <td class="px-4 py-3">{{ $t->uraian }}</td>
-                        <td class="px-4 py-3 text-right text-green-600 font-medium">
-                            {{ $t->jenis === 'masuk' ? '+ Rp'.number_format($t->nominal,0,',','.') : '-' }}
-                        </td>
-                        <td class="px-4 py-3 text-right text-red-500 font-medium">
-                            {{ $t->jenis === 'keluar' ? '- Rp'.number_format($t->nominal,0,',','.') : '-' }}
-                        </td>
-                        <td class="px-4 py-3 text-right font-semibold {{ $t->saldo_berjalan < 0 ? 'text-red-500' : 'text-gray-900' }}">
-                            Rp{{ number_format($t->saldo_berjalan, 0, ',', '.') }}
-                        </td>
-                        <td class="px-4 py-3 text-gray-500">{{ $t->sumber ?: '-' }}</td>
-                        <td class="px-4 py-3 text-gray-500">{{ $t->catatan ?: '-' }}</td>
-                        <td class="px-4 py-3">
-                            <div class="flex items-center justify-center gap-3">
-                                <button type="button" class="text-gray-500 hover:text-gray-800" title="Edit"
-                                    @click="openEdit({{ $t->id }}, '{{ $t->tanggal->format('Y-m-d') }}', '{{ $t->kode }}', '{{ $t->kategori }}', '{{ $t->jenis }}', '{{ addslashes($t->uraian) }}', {{ $t->nominal }}, '{{ addslashes($t->sumber ?? '') }}', '{{ addslashes($t->catatan ?? '') }}')">
-                                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 13.5v5.25a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 18.75V6.75a2.25 2.25 0 012.25-2.25h5.25" />
-                                    </svg>
-                                </button>
-                                <form action="{{ route('kas-proyek.destroy', $t) }}" method="POST" onsubmit="return confirm('Hapus transaksi ini?')">
-                                    @csrf @method('DELETE')
-                                    <button type="submit" class="text-red-500 hover:text-red-700" title="Hapus">
-                                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
-                                            <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
-                                        </svg>
-                                    </button>
-                                </form>
-                            </div>
-                        </td>
-                    </tr>
-                @empty
-                    <tr>
-                        <td colspan="10" class="px-4 py-6 text-center text-gray-400">Belum ada transaksi.</td>
-                    </tr>
-                @endforelse
-            </tbody>
-        </table>
-    </div>
-
-    <!-- MODAL TAMBAH / EDIT TRANSAKSI KAS -->
-    <div x-show="open" x-cloak
-        x-transition:enter="transition ease-out duration-200"
-        x-transition:enter-start="opacity-0"
-        x-transition:enter-end="opacity-100"
-        x-transition:leave="transition ease-in duration-150"
-        x-transition:leave-start="opacity-100"
-        x-transition:leave-end="opacity-0"
-        class="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/60 backdrop-blur-sm p-4" style="display:none;">
-
-        <div x-show="open"
-            x-transition:enter="transition ease-out duration-200"
-            x-transition:enter-start="opacity-0 scale-95 translate-y-2"
-            x-transition:enter-end="opacity-100 scale-100 translate-y-0"
-            x-transition:leave="transition ease-in duration-150"
-            x-transition:leave-start="opacity-100 scale-100"
-            x-transition:leave-end="opacity-0 scale-95"
-            @click.outside="open = false"
-            class="w-full max-w-xl bg-white rounded-2xl shadow-2xl overflow-hidden">
-
-            <form :action="mode === 'edit' ? editUrl : '{{ route('kas-proyek.store') }}'" method="POST">
-                @csrf
-                <input type="hidden" name="_method" :value="mode === 'edit' ? 'PUT' : 'POST'">
-
-                <!-- Header -->
-                <div class="relative bg-gradient-to-r from-gray-900 to-gray-700 px-6 py-5">
-                    <button type="button" @click="open = false"
-                        class="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white transition">
-                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                    </button>
-                    <div class="flex items-center gap-3">
-                        <div class="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center text-white">
-                            <svg x-show="mode === 'edit'" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 13.5v5.25a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 18.75V6.75a2.25 2.25 0 012.25-2.25h5.25" />
-                            </svg>
-                            <svg x-show="mode !== 'edit'" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-4.5-9h15a1.5 1.5 0 011.5 1.5v9a1.5 1.5 0 01-1.5 1.5h-15a1.5 1.5 0 01-1.5-1.5v-9a1.5 1.5 0 011.5-1.5z" />
-                            </svg>
-                        </div>
-                        <div>
-                            <h2 class="text-base font-semibold text-white" x-text="mode === 'edit' ? 'Edit Transaksi Kas' : 'Tambah Transaksi Kas'"></h2>
-                            <p class="text-xs text-gray-300">Catat transaksi pemasukan atau pengeluaran kas proyek</p>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Body -->
-                <div class="px-6 py-5 space-y-5 max-h-[75vh] overflow-y-auto">
-
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Tanggal Transaksi</label>
-                            <input type="date" name="tanggal" x-model="form.tanggal" required
-                                class="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm bg-gray-50 focus:bg-white focus:ring-2 focus:ring-gray-900/10 focus:border-gray-400 outline-none transition">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Kode Transaksi</label>
-                            <input type="text" name="kode" x-model="form.kode" required
-                                class="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm font-medium bg-gray-50 focus:bg-white focus:ring-2 focus:ring-gray-900/10 focus:border-gray-400 outline-none transition">
-                            <button type="button" @click="generateKode()" class="flex items-center gap-1 text-[11px] text-gray-400 hover:text-gray-600 mt-1">
-                                <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
-                                </svg>
-                                Buat kode otomatis
-                            </button>
-                        </div>
-                    </div>
-
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Kategori</label>
-                            <select name="kategori" x-model="form.kategori" required
-                                class="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm bg-gray-50 focus:bg-white focus:ring-2 focus:ring-gray-900/10 focus:border-gray-400 outline-none transition">
-                                <option value="">Pilih kategori</option>
-                                <option value="Penjualan">Penjualan</option>
-                                <option value="Marketing">Marketing</option>
-                                <option value="Operasional">Operasional</option>
-                                <option value="Tanah">Tanah</option>
-                                <option value="Cadangan">Cadangan</option>
-                                <option value="Lainnya">Lainnya</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Jenis Transaksi</label>
-                            <div class="grid grid-cols-2 gap-1.5 p-1 bg-gray-100 rounded-xl">
-                                <button type="button" @click="setJenis('masuk')"
-                                    :class="form.jenis === 'masuk' ? 'bg-gray-900 text-white shadow' : 'text-gray-500'"
-                                    class="text-xs font-medium py-1.5 rounded-lg transition">Pemasukan</button>
-                                <button type="button" @click="setJenis('keluar')"
-                                    :class="form.jenis === 'keluar' ? 'bg-gray-900 text-white shadow' : 'text-gray-500'"
-                                    class="text-xs font-medium py-1.5 rounded-lg transition">Pengeluaran</button>
-                            </div>
-                            <input type="hidden" name="jenis" :value="form.jenis">
-                        </div>
-                    </div>
-
-                    <div>
-                        <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Uraian</label>
-                        <input type="text" name="uraian" x-model="form.uraian" required
-                            placeholder="Contoh: Biaya iklan Meta Ads Q4"
-                            class="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm bg-gray-50 focus:bg-white focus:ring-2 focus:ring-gray-900/10 focus:border-gray-400 outline-none transition">
-                    </div>
-
-                    <div>
-                        <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-                            Nominal <span x-text="form.jenis === 'masuk' ? '(Masuk)' : '(Keluar)'"></span>
-                        </label>
-                        <div class="flex items-center gap-1 border border-gray-200 rounded-xl px-3.5 py-2.5 bg-gray-50 focus-within:bg-white focus-within:ring-2 focus-within:ring-gray-900/10 focus-within:border-gray-400 transition">
-                            <span class="text-sm text-gray-400 font-medium">Rp</span>
-                            <input type="number" min="0" step="1" name="nominal" x-model.number="form.nominal" required
-                                class="w-full bg-transparent text-sm font-semibold text-gray-900 outline-none">
-                        </div>
-                    </div>
-
-                    <div>
-                        <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Sumber / Transaksi</label>
-                        <input type="text" name="sumber" x-model="form.sumber" list="sumber-list"
-                            placeholder="Contoh: Rekening Operasional, Kas Kecil Proyek"
-                            class="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm bg-gray-50 focus:bg-white focus:ring-2 focus:ring-gray-900/10 focus:border-gray-400 outline-none transition">
-                        <datalist id="sumber-list">
-                            <option value="Rekening Operasional">
-                            <option value="Kas Kecil Proyek">
-                        </datalist>
-                    </div>
-
-                    <div>
-                        <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Catatan</label>
-                        <textarea name="catatan" x-model="form.catatan" rows="2"
-                            placeholder="Tambahkan catatan transaksi jika diperlukan..."
-                            class="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm bg-gray-50 focus:bg-white focus:ring-2 focus:ring-gray-900/10 focus:border-gray-400 outline-none transition resize-none"></textarea>
-                    </div>
-
-                    <!-- Ringkasan -->
-                    <div class="rounded-2xl border border-green-200 bg-green-50 px-4 py-3">
-                        <p class="text-[11px] font-semibold text-green-700 uppercase tracking-wide mb-2">Ringkasan Transaksi</p>
-                        <div class="grid grid-cols-3 gap-3 text-sm">
-                            <div>
-                                <p class="text-xs text-gray-500">Jenis Transaksi</p>
-                                <p class="font-semibold" :class="form.jenis === 'masuk' ? 'text-green-700' : 'text-red-600'"
-                                    x-text="form.jenis === 'masuk' ? 'Pemasukan' : 'Pengeluaran'"></p>
-                            </div>
-                            <div>
-                                <p class="text-xs text-gray-500">Kategori</p>
-                                <p class="font-semibold text-gray-800" x-text="form.kategori || '-'"></p>
-                            </div>
-                            <div>
-                                <p class="text-xs text-gray-500">Nominal</p>
-                                <p class="font-semibold text-gray-900" x-text="'Rp' + new Intl.NumberFormat('id-ID').format(form.nominal || 0)"></p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Footer -->
-                <div class="flex justify-end gap-3 px-6 py-4 bg-gray-50 border-t border-gray-100">
-                    <button type="button" @click="open = false"
-                        class="px-4 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-200/60 rounded-xl transition">
-                        Batal
-                    </button>
-                    <button type="submit"
-                        class="flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-white bg-gray-900 hover:bg-gray-800 rounded-xl shadow-sm transition">
-                        <span x-text="mode === 'edit' ? 'Simpan Perubahan' : 'Simpan Transaksi'"></span>
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
+<div class="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
+    <x-stat-card label="Total Masuk" :value="rupiah($totalMasuk)" icon="arrow-right"/>
+    <x-stat-card label="Total Keluar" :value="rupiah($totalKeluar)" icon="arrow-left"/>
+    <x-stat-card label="Saldo Kas Proyek" :value="rupiah($saldo)" :tone="$saldo < 0 ? 'danger' : 'dark'" icon="wallet"/>
 </div>
 
-<script>
-function kasPage() {
-    return {
-        open: false,
-        mode: 'tambah',
-        editUrl: '',
-        nextKodeMasuk: '{{ $nextKodeMasuk }}',
-        nextKodeKeluar: '{{ $nextKodeKeluar }}',
-        form: {
-            tanggal: new Date().toISOString().slice(0,10),
-            kode: '',
-            kategori: '',
-            jenis: 'masuk',
-            uraian: '',
-            nominal: 0,
-            sumber: '',
-            catatan: '',
-        },
-        openTambah() {
-            this.mode = 'tambah';
-            this.editUrl = '';
-            this.form = {
-                tanggal: new Date().toISOString().slice(0,10),
-                kode: this.nextKodeMasuk,
-                kategori: '', jenis: 'masuk', uraian: '', nominal: 0, sumber: '', catatan: '',
-            };
-            this.open = true;
-        },
-        openEdit(id, tanggal, kode, kategori, jenis, uraian, nominal, sumber, catatan) {
-            this.mode = 'edit';
-            this.editUrl = `/kas-proyek/${id}`;
-            this.form = { tanggal, kode, kategori, jenis, uraian, nominal, sumber, catatan };
-            this.open = true;
-        },
-        setJenis(jenis) {
-            this.form.jenis = jenis;
-            if (this.mode === 'tambah') {
-                this.form.kode = jenis === 'masuk' ? this.nextKodeMasuk : this.nextKodeKeluar;
-            }
-        },
-        generateKode() {
-            this.form.kode = this.form.jenis === 'masuk' ? this.nextKodeMasuk : this.nextKodeKeluar;
-        }
-    }
-}
-</script>
+<div class="mb-4 flex gap-2 overflow-x-auto pb-1">
+    @foreach (['' => 'Semua', 'masuk' => 'Masuk', 'keluar' => 'Keluar'] as $j => $l)
+        <a href="{{ request()->fullUrlWithQuery(['jenis' => $j ?: null, 'page' => null]) }}" @class(['btn btn-sm', 'btn-primary' => request('jenis', '') === $j, 'btn-secondary' => request('jenis', '') !== $j])>{{ $l }}</a>
+    @endforeach
+</div>
+
+<div class="card">
+    <x-filter-bar placeholder="Cari kode, uraian, sumber…">
+        @if (request('jenis'))<input type="hidden" name="jenis" value="{{ request('jenis') }}">@endif
+        <x-select name="asal" :options="\App\Models\KasTransaksi::ASAL" :value="request('asal')" placeholder="Semua asal" class="sm:w-48"/>
+        <x-select name="pos" :options="\App\Models\AlokasiKas::POS" :value="request('pos')" placeholder="Semua pos" class="sm:w-48"/>
+        <x-select name="kategori" :options="$kategoriList->mapWithKeys(fn ($k) => [$k => $k])" :value="request('kategori')" placeholder="Semua kategori" class="sm:w-44"/>
+        <input type="month" name="bulan" value="{{ request('bulan') }}" class="form-input sm:w-44" title="Bulan">
+    </x-filter-bar>
+
+    @if ($baris->isEmpty())
+        <x-empty-state title="Belum ada transaksi kas" message="Tidak ada catatan kas yang cocok."/>
+    @else
+        <div class="table-wrap">
+            <table class="table">
+                <thead><tr><th>Tanggal / Kode</th><th>Uraian</th><th>Kategori / Pos</th><th class="text-right">Masuk</th><th class="text-right">Keluar</th><th class="text-right">Saldo</th><th class="text-right">Aksi</th></tr></thead>
+                <tbody>
+                    @foreach ($baris as $k)
+                        <tr>
+                            <td>{{ tanggal($k->tanggal) }}<div class="text-xs text-slate-500">{{ $k->kode }}</div></td>
+                            <td class="wrap min-w-[240px]">
+                                <span class="text-slate-900">{{ $k->uraian }}</span>
+                                <div class="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-slate-500">
+                                    @if ($k->isOtomatis())
+                                        <x-badge status="menunggu" :label="\App\Models\KasTransaksi::ASAL[$k->asal]" warna="emas"/>
+                                    @endif
+                                    @if ($k->sumber)<span>{{ $k->sumber }}</span>@endif
+                                    @if ($k->rab)<span>· RAB: {{ $k->rab->uraian }}</span>@endif
+                                </div>
+                            </td>
+                            <td>{{ $k->kategori }}@if ($k->pos)<div class="text-xs text-slate-500">{{ \App\Models\AlokasiKas::POS[$k->pos] }}</div>@endif</td>
+                            <td class="text-right tabular-nums text-forest-600">{{ $k->jenis === 'masuk' ? rupiah($k->nominal) : '' }}</td>
+                            <td class="text-right tabular-nums text-red-600">{{ $k->jenis === 'keluar' ? rupiah($k->nominal) : '' }}</td>
+                            <td @class(['text-right font-medium tabular-nums', 'text-red-600' => $k->saldo_berjalan < 0])>{{ rupiah($k->saldo_berjalan) }}</td>
+                            <td>
+                                <div class="flex justify-end gap-1">
+                                    @if ($k->isOtomatis())
+                                        @if ($link = $k->linkSumber())<a href="{{ $link }}" class="btn-icon" title="Buka sumber"><x-icon name="arrow-right" class="h-[18px] w-[18px]"/></a>@endif
+                                    @else
+                                        <button type="button" class="btn-icon" title="Ubah"
+                                                x-on:click="buka(@js(['id' => $k->id, 'tanggal' => $k->tanggal->toDateString(), 'jenis' => $k->jenis, 'kategori' => $k->kategori, 'rab_id' => (string) $k->rab_id, 'pos' => (string) $k->pos, 'uraian' => $k->uraian, 'nominal' => (float) $k->nominal, 'sumber' => $k->sumber, 'catatan' => $k->catatan]))"><x-icon name="pencil" class="h-[18px] w-[18px]"/></button>
+                                        <x-delete-button :action="route('kas-proyek.destroy', $k)" title="Hapus {{ $k->kode }}?"/>
+                                    @endif
+                                </div>
+                            </td>
+                        </tr>
+                    @endforeach
+                </tbody>
+                @if (request()->hasAny(['jenis', 'asal', 'pos', 'kategori', 'bulan', 'cari']))
+                    <tfoot><tr><td colspan="3">Total hasil filter</td><td class="text-right text-forest-600">{{ rupiah($filterMasuk) }}</td><td class="text-right text-red-600">{{ rupiah($filterKeluar) }}</td><td colspan="2"></td></tr></tfoot>
+                @endif
+            </table>
+        </div>
+        @if ($baris->hasPages())<div class="border-t border-slate-100 px-4 py-3">{{ $baris->links() }}</div>@endif
+    @endif
+</div>
+
+<x-modal name="kas" max-width="lg" :show="old('_form') === 'kas' && $errors->any()">
+    <form method="POST" :action="action">
+        @csrf
+        <template x-if="f.id"><input type="hidden" name="_method" value="PUT"></template>
+        <input type="hidden" name="_form" value="kas"><input type="hidden" name="_id" :value="f.id">
+        <input type="hidden" name="jenis" :value="f.jenis">
+        <div class="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+            <h3 class="text-base font-semibold text-slate-900" x-text="(f.id ? 'Ubah ' : 'Catat ') + (f.jenis === 'masuk' ? 'Kas Masuk' : 'Pengeluaran')"></h3>
+            <button type="button" class="btn-icon -mr-2" x-on:click="$dispatch('close-modal', 'kas')"><x-icon name="x"/></button>
+        </div>
+        <div class="space-y-4 p-5">
+            <p x-show="f.jenis === 'masuk'" class="rounded-lg bg-sky-50 px-3 py-2 text-xs text-sky-800">Kas masuk manual (mis. modal/pinjaman) tidak ikut dialokasikan. Pembayaran konsumen dicatat dari halaman transaksi.</p>
+            <div class="grid gap-4 sm:grid-cols-2">
+                <x-field label="Tanggal" name="tanggal" required>
+                    <input type="date" name="tanggal" id="tanggal" x-model="f.tanggal" max="{{ now()->toDateString() }}" class="form-input">
+                </x-field>
+                <x-field label="Nominal" name="nominal" required><x-money name="nominal"/></x-field>
+            </div>
+            <template x-if="f.jenis === 'keluar'">
+                <div class="grid gap-4 sm:grid-cols-2">
+                    <x-field label="Item RAB" name="rab_id" hint="Opsional. Mengisi realisasi RAB.">
+                        <select name="rab_id" id="rab_id" x-model="f.rab_id" x-on:change="pilihRab()" class="form-input">
+                            <option value="">— Bukan item RAB —</option>
+                            @foreach ($rabs as $r)<option value="{{ $r->id }}">{{ $r->kategori }} · {{ $r->uraian }}</option>@endforeach
+                        </select>
+                    </x-field>
+                    <x-field label="Pos Alokasi" name="pos" required>
+                        <select name="pos" id="pos" x-model="f.pos" :disabled="!!f.rab_id" class="form-input">
+                            <option value="">— Pilih pos —</option>
+                            @foreach (\App\Models\AlokasiKas::POS as $v => $l)<option value="{{ $v }}">{{ $l }}</option>@endforeach
+                        </select>
+                        <input type="hidden" name="pos" :value="f.pos" x-bind:disabled="!f.rab_id">
+                    </x-field>
+                </div>
+            </template>
+            <x-field label="Kategori" name="kategori" required>
+                <input type="text" name="kategori" id="kategori" x-model="f.kategori" list="daftar-kategori" class="form-input" placeholder="Mis. Legalitas, Operasional, Modal">
+                <datalist id="daftar-kategori">@foreach ($kategoriList->merge($rabs->pluck('kategori'))->unique() as $k)<option value="{{ $k }}">@endforeach</datalist>
+            </x-field>
+            <x-field label="Uraian" name="uraian" required>
+                <input type="text" name="uraian" id="uraian" x-model="f.uraian" class="form-input">
+            </x-field>
+            <div class="grid gap-4 sm:grid-cols-2">
+                <x-field label="Sumber / Penerima" name="sumber"><input type="text" name="sumber" id="sumber" x-model="f.sumber" class="form-input"></x-field>
+                <x-field label="Catatan" name="catatan"><input type="text" name="catatan" id="catatan" x-model="f.catatan" class="form-input"></x-field>
+            </div>
+        </div>
+        <div class="flex flex-col-reverse gap-2 border-t border-slate-100 px-5 py-4 sm:flex-row sm:justify-end">
+            <button type="button" class="btn btn-secondary" x-on:click="$dispatch('close-modal', 'kas')">Batal</button>
+            <button type="submit" class="btn btn-primary">Simpan</button>
+        </div>
+    </form>
+</x-modal>
+</div>
 @endsection

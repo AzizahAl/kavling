@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\CashflowController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\KasProyekController;
 use App\Http\Controllers\KavlingController;
@@ -78,9 +79,10 @@ Route::get('/rab-realisasi', [RabController::class, 'index'])->name('rab.index')
 Route::post('/rab-realisasi', [RabController::class, 'store'])->name('rab.store');
 Route::put('/rab-realisasi/{rab}', [RabController::class, 'update'])->name('rab.update');
 Route::delete('/rab-realisasi/{rab}', [RabController::class, 'destroy'])->name('rab.destroy');
-Route::patch('/rab-realisasi/{rab}/verifikasi', [RabController::class, 'verifikasi'])->name('rab.verifikasi');
 
 Route::get('/kas-proyek', [KasProyekController::class, 'index'])->name('kas-proyek.index');
 Route::post('/kas-proyek', [KasProyekController::class, 'store'])->name('kas-proyek.store');
 Route::put('/kas-proyek/{kasTransaksi}', [KasProyekController::class, 'update'])->name('kas-proyek.update');
 Route::delete('/kas-proyek/{kasTransaksi}', [KasProyekController::class, 'destroy'])->name('kas-proyek.destroy');
+
+Route::get('/alokasi-cashflow', [CashflowController::class, 'index'])->name('cashflow.index');

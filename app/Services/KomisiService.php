@@ -78,6 +78,7 @@ class KomisiService
                 'tanggal'              => $p->tanggal,
                 'kode'                 => $this->kas->kodeBerikut('keluar', $p->tanggal),
                 'kategori'             => 'Komisi Agen',
+                'pos'                  => 'marketing',
                 'jenis'                => 'keluar',
                 'asal'                 => 'komisi',
                 'komisi_pembayaran_id' => $p->id,

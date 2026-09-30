@@ -15,8 +15,8 @@
         harga: {{ $hargaAktif }},
         get action() { return this.form.id ? '{{ url('master-kavling') }}/' + this.form.id : '{{ route('kavling.store') }}' },
         get estimasi() { return (Number(this.form.luas) || 0) * this.harga },
-        tambah() { this.form = { ...this.kosong }; $dispatch('open-modal', 'kavling') },
-        ubah(k) { this.form = { ...k }; $dispatch('open-modal', 'kavling') },
+        tambah() { this.form = { ...this.kosong }; this.$dispatch('open-modal', 'kavling') },
+        ubah(k) { this.form = { ...k }; this.$dispatch('open-modal', 'kavling') },
      }">
 
     <x-page-header title="Master Kavling" subtitle="Data kavling, status, dan harga jual. Status berubah otomatis mengikuti transaksi."

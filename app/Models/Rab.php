@@ -2,60 +2,52 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
+/** RAB. Realisasi = jumlah kas keluar yang ditautkan ke item ini (lihat scopeDenganRealisasi). */
 class Rab extends Model
 {
-    protected $table = 'rabs'; // ganti kalau nama tabel Anda berbeda
+    protected $table = 'rabs';
 
-    protected $fillable = [
-        'kategori',
-        'uraian',
-        'anggaran',
-        'realisasi',
-        'status_realisasi',
-        'catatan',
-    ];
+    protected $fillable = ['kategori', 'pos', 'uraian', 'anggaran', 'catatan'];
 
-    protected $casts = [
-        'anggaran'  => 'integer',
-        'realisasi' => 'integer',
-    ];
+    protected $casts = ['anggaran' => 'decimal:2'];
 
-    // Selisih = anggaran - realisasi
-    public function getSelisihAttribute()
+    public function kasKeluar(): HasMany
     {
-        if (is_null($this->anggaran)) {
-            return null;
-        }
-        return (int) $this->anggaran - (int) $this->realisasi;
+        return $this->hasMany(KasTransaksi::class)->where('jenis', 'keluar')->latest('tanggal');
     }
 
-    // belum / sesuai / kurang / lebih
-    public function getStatusKeuanganAttribute()
+    public function scopeDenganRealisasi(Builder $q): Builder
     {
-        $anggaran  = (int) $this->anggaran;
-        $realisasi = (int) $this->realisasi;
-
-        if ($realisasi <= 0) {
-            return 'belum';   // realisasi belum diisi
-        }
-        if ($realisasi === $anggaran) {
-            return 'sesuai';  // Realisasi = Anggaran
-        }
-        if ($realisasi < $anggaran) {
-            return 'kurang';  // Realisasi < Anggaran
-        }
-        return 'lebih';       // Realisasi > Anggaran
+        return $q->withSum('kasKeluar as realisasi', 'nominal');
     }
 
-    public function getStatusKeuanganLabelAttribute()
+    public function getRealisasiNilaiAttribute(): float
     {
-        return match ($this->status_keuangan) {
-            'sesuai' => 'Sesuai Anggaran',
-            'kurang' => 'Di Bawah Anggaran',
-            'lebih'  => 'Melebihi Anggaran',
-            default  => 'Belum Dianggarkan',
+        return (float) ($this->attributes['realisasi'] ?? $this->kasKeluar()->sum('nominal'));
+    }
+
+    public function getSelisihAttribute(): ?float
+    {
+        return $this->anggaran === null ? null : (float) $this->anggaran - $this->realisasi_nilai;
+    }
+
+    /** Sama dengan rumus Excel RAB_MASTER kolom Status. */
+    public function getStatusAttribute(): string
+    {
+        if ($this->anggaran === null) {
+            return 'belum_dianggarkan';
+        }
+        $r = $this->realisasi_nilai;
+        $a = (float) $this->anggaran;
+
+        return match (true) {
+            $r > $a  => 'melebihi',
+            $r == $a => 'sesuai',
+            default  => 'berjalan',
         };
     }
 }

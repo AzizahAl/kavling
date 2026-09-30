@@ -10,6 +10,8 @@ use Illuminate\Support\Carbon;
 /** Buku kas: pembayaran konsumen & refund tercatat otomatis di sini. */
 class KasService
 {
+    public function __construct(private AlokasiService $alokasi) {}
+
     public function kodeBerikut(string $jenis, $tanggal = null): string
     {
         $tahun = $tanggal ? Carbon::parse($tanggal)->year : now()->year;
@@ -38,19 +40,20 @@ class KasService
         $kas = KasTransaksi::firstWhere('pembayaran_id', $p->id);
         if ($kas) {
             $kas->update($data);
-
-            return $kas;
+        } else {
+            $kas = KasTransaksi::create($data + [
+                'pembayaran_id' => $p->id,
+                'kode'          => $this->kodeBerikut('masuk', $p->tanggal),
+            ]);
         }
+        $this->alokasi->alokasikan($kas);
 
-        return KasTransaksi::create($data + [
-            'pembayaran_id' => $p->id,
-            'kode'          => $this->kodeBerikut('masuk', $p->tanggal),
-        ]);
+        return $kas;
     }
 
     public function catatRefund(TransaksiPenjualan $t, float $nominal, $tanggal, string $rincian): KasTransaksi
     {
-        return KasTransaksi::create([
+        $kas = KasTransaksi::create([
             'tanggal'      => $tanggal,
             'kode'         => $this->kodeBerikut('keluar', $tanggal),
             'kategori'     => 'Refund Pembatalan',
@@ -62,6 +65,9 @@ class KasService
             'sumber'       => $t->kode_transaksi,
             'catatan'      => $rincian,
         ]);
+        $this->alokasi->alokasikan($kas);
+
+        return $kas;
     }
 
     public function saldo(): float

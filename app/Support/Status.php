@@ -46,6 +46,11 @@ class Status
         'prospek'   => ['Prospek', 'kuning'],
         'closing'   => ['Closing', 'hijau'],
         'gugur'     => ['Gugur', 'merah'],
+        // RAB (rumus Excel RAB_MASTER)
+        'belum_dianggarkan' => ['Belum Dianggarkan', 'abu'],
+        'berjalan'  => ['Berjalan', 'biru'],
+        'sesuai'    => ['Sesuai', 'hijau'],
+        'melebihi'  => ['Melebihi', 'merah'],
         // umum
         'aktif'     => ['Aktif', 'hijau'],
         'menunggu'  => ['Menunggu', 'abu'],

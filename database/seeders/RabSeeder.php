@@ -7,27 +7,23 @@ use Illuminate\Database\Seeder;
 
 class RabSeeder extends Seeder
 {
-    /** Sheet RAB_MASTER. Anggaran kosong di Excel dibiarkan kosong (Belum Dianggarkan). */
+    /** Sheet RAB_MASTER. Anggaran kosong di Excel dibiarkan kosong (Belum Dianggarkan). Realisasi dihitung dari kas keluar. */
     public function run(): void
     {
         $data = [
-            ['Tanah', 'Pembayaran/pembebasan tanah', null, 0],
-            ['Legalitas', 'AJB / TORA / administrasi', null, 0],
-            ['Pematangan Lahan', 'Pembersihan & pematangan', null, 0],
-            ['Infrastruktur', 'Jalan dalam 5,3 m', null, 0],
-            ['Infrastruktur', 'Drainase', null, 0],
-            ['Fasilitas', 'Gerbang / signage', null, 0],
-            ['Marketing', 'Banner sponsor Rancabuaya & Sukarame', 500000, 500000],
-            ['Operasional', 'Operasional proyek', null, 0],
-            ['Cadangan', 'Dana cadangan', null, 0],
+            ['Tanah', 'tanah', 'Pembayaran/pembebasan tanah', null],
+            ['Legalitas', 'legal_infra', 'AJB / TORA / administrasi', null],
+            ['Pematangan Lahan', 'legal_infra', 'Pembersihan & pematangan', null],
+            ['Infrastruktur', 'legal_infra', 'Jalan dalam 5,3 m', null],
+            ['Infrastruktur', 'legal_infra', 'Drainase', null],
+            ['Fasilitas', 'legal_infra', 'Gerbang / signage', null],
+            ['Marketing', 'marketing', 'Banner sponsor Rancabuaya & Sukarame', 500000],
+            ['Operasional', 'operasional', 'Operasional proyek', null],
+            ['Cadangan', 'cadangan', 'Dana cadangan', null],
         ];
 
-        foreach ($data as [$kategori, $uraian, $anggaran, $realisasi]) {
-            Rab::firstOrCreate(['kategori' => $kategori, 'uraian' => $uraian], [
-                'anggaran'         => $anggaran,
-                'realisasi'        => $realisasi,
-                'status_realisasi' => $realisasi > 0 ? 'sudah_direalisasikan' : 'belum_direalisasikan',
-            ]);
+        foreach ($data as [$kategori, $pos, $uraian, $anggaran]) {
+            Rab::firstOrCreate(['kategori' => $kategori, 'uraian' => $uraian], ['pos' => $pos, 'anggaran' => $anggaran]);
         }
     }
 }

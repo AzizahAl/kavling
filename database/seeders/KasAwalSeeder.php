@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\KasTransaksi;
+use App\Models\Rab;
 use Illuminate\Database\Seeder;
 
 class KasAwalSeeder extends Seeder
@@ -13,6 +14,8 @@ class KasAwalSeeder extends Seeder
         KasTransaksi::firstOrCreate(['kode' => 'EXP-2026-0001'], [
             'tanggal'  => '2026-07-24',
             'kategori' => 'Marketing',
+            'pos'      => 'marketing',
+            'rab_id'   => Rab::where('uraian', 'Banner sponsor Rancabuaya & Sukarame')->value('id'),
             'jenis'    => 'keluar',
             'asal'     => 'manual',
             'uraian'   => 'Banner sponsor Rancabuaya & Sukarame',

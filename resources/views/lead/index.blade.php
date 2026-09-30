@@ -15,9 +15,9 @@
         get action() { return this.f.id ? '{{ url('lead-harian') }}/' + this.f.id : '{{ route('lead.store') }}' },
         get urlAksi() { return '{{ url('lead-harian') }}/' + this.aksi.id + '/' + this.aksi.jenis },
         get transaksiCocok() { return this.transaksi.filter(t => !t.agen_id || t.agen_id == this.aksi.agen) },
-        tambah() { this.f = { ...this.kosong }; $dispatch('open-modal', 'lead') },
-        ubah(l) { this.f = { ...l }; $dispatch('open-modal', 'lead') },
-        maju(jenis, l) { this.aksi = { jenis, id: l.id, nama: l.nama, agen: l.agen_id }; $dispatch('open-modal', 'aksi') },
+        tambah() { this.f = { ...this.kosong }; this.$dispatch('open-modal', 'lead') },
+        ubah(l) { this.f = { ...l }; this.$dispatch('open-modal', 'lead') },
+        maju(jenis, l) { this.aksi = { jenis, id: l.id, nama: l.nama, agen: l.agen_id }; this.$dispatch('open-modal', 'aksi') },
      }">
 
 <x-page-header title="Lead Harian" subtitle="Alur marketing: Lead → Prospek → Closing. Setiap perubahan tahap dicatat tanggalnya."
