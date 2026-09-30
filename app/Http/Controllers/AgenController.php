@@ -3,174 +3,146 @@
 namespace App\Http\Controllers;
 
 use App\Models\Agen;
+use App\Models\KomisiPembayaran;
+use App\Services\KomisiService;
+use App\Services\LeadService;
+use App\Services\Penomoran;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
 class AgenController extends Controller
 {
+    public function __construct(private KomisiService $komisi, private LeadService $lead) {}
+
     public function index(Request $request)
     {
-        $query = Agen::query();
+        $total = $this->lead->totalPerAgen();
 
-        if ($search = $request->input('search')) {
-            $query->where(function ($q) use ($search) {
-                $q->where('nama_agen', 'like', "%{$search}%")
-                  ->orWhere('kode_agen', 'like', "%{$search}%");
+        $agens = Agen::query()
+            ->when($request->filled('cari'), fn ($q) => $q->where(fn ($w) => $w
+                ->where('nama_agen', 'like', "%{$request->cari}%")->orWhere('kode_agen', 'like', "%{$request->cari}%")))
+            ->when($request->status === 'aktif', fn ($q) => $q->where('aktif', true))
+            ->when($request->status === 'nonaktif', fn ($q) => $q->where('aktif', false))
+            ->orderBy('kode_agen')->get()
+            ->map(function (Agen $a) use ($total) {
+                $a->angka = $this->komisi->ringkasan($a) + [
+                    'lead'    => (int) ($total[$a->id]->lead ?? 0),
+                    'prospek' => (int) ($total[$a->id]->prospek ?? 0),
+                    'closing' => (int) ($total[$a->id]->closing ?? 0),
+                ];
+
+                return $a;
             });
-        }
 
-        match ($request->input('sort')) {
-            'closing_desc' => $query->orderByDesc('closing'),
-            'komisi_desc'  => $query->orderByDesc('komisi_terhitung'),
-            'sisa_desc'    => $query->orderByDesc('sisa_komisi'),
-            default        => $query->orderBy('kode_agen'),
+        $agens = match ($request->urut) {
+            'closing'   => $agens->sortByDesc(fn ($a) => $a->angka['closing']),
+            'penjualan' => $agens->sortByDesc(fn ($a) => $a->angka['nilai_penjualan']),
+            'sisa'      => $agens->sortByDesc(fn ($a) => $a->angka['sisa'] ?? 0),
+            default     => $agens,
         };
 
-        $agens = $query->get();
-
-        $totalAgen     = Agen::count();
-        $totalLead     = Agen::sum('lead');
-        $totalProspek  = Agen::sum('prospek');
-        $totalClosing  = Agen::sum('closing');
-        $nilaiPenjualan = Agen::sum('nilai_penjualan');
-        $totalKomisi    = Agen::sum('komisi_terhitung');
-
         $stats = [
-            'total_agen'             => $totalAgen,
-            'total_lead'              => $totalLead,
-            'total_prospek'           => $totalProspek,
-            'total_closing'           => $totalClosing,
-            'nilai_penjualan_short'   => $this->formatSingkat($nilaiPenjualan),
-            'total_komisi_short'      => $this->formatSingkat($totalKomisi),
+            'agen'      => $agens->count(),
+            'lead'      => $agens->sum(fn ($a) => $a->angka['lead']),
+            'prospek'   => $agens->sum(fn ($a) => $a->angka['prospek']),
+            'closing'   => $agens->sum(fn ($a) => $a->angka['closing']),
+            'penjualan' => $agens->sum(fn ($a) => $a->angka['nilai_penjualan']),
+            'hak'       => $agens->sum(fn ($a) => $a->angka['komisi_hak'] ?? 0),
+            'sisa'      => $agens->sum(fn ($a) => $a->angka['sisa'] ?? 0),
         ];
 
-        // Kode agen berikutnya, buat ditampilkan di form Tambah (preview doang)
-        $nextKodeAgen = $this->generateKodeAgen();
-
-        return view('agen.index', compact('agens', 'stats', 'nextKodeAgen'));
+        return view('agen.index', compact('agens', 'stats'));
     }
 
-    /**
-     * Endpoint AJAX buat ambil kode agen berikutnya secara real-time,
-     * dipanggil tiap kali modal Tambah Agen dibuka biar gak pernah stale.
-     */
-    public function nextKode()
+    public function show(Agen $agen)
     {
-        return response()->json([
-            'kode' => $this->generateKodeAgen(),
+        $rincian = $this->komisi->rincian($agen);
+        $t = $this->lead->totalPerAgen()[$agen->id] ?? null;
+
+        return view('agen.show', [
+            'agen'     => $agen->load(['komisiPembayarans.transaksi.kavling', 'komisiPembayarans.kas']),
+            'rincian'  => $rincian,
+            'angka'    => $this->komisi->ringkasan($agen, $rincian) + [
+                'lead' => (int) ($t->lead ?? 0), 'prospek' => (int) ($t->prospek ?? 0), 'closing' => (int) ($t->closing ?? 0),
+            ],
+            'leads'    => $agen->leads()->latest('tanggal_lead')->latest('id')->limit(10)->get(),
+            'bulanan'  => $this->lead->rekapPerAgen(now()->startOfMonth(), now()->endOfMonth(), $agen->id)->first(),
         ]);
     }
 
     public function store(Request $request)
     {
-        $validated = $request->validate([
-            'nama_agen'        => 'required|string|max:255',
-            'no_hp'            => 'nullable|string|max:20',
-            'lead'             => 'nullable|integer|min:0',
-            'prospek'          => 'nullable|integer|min:0',
-            'closing'          => 'nullable|integer|min:0',
-            'nilai_penjualan'  => 'nullable|numeric|min:0',
-            'komisi_persen'    => 'nullable|numeric|min:0|max:100',
-            'dibayar'          => 'nullable|numeric|min:0',
-        ]);
+        $data = $this->validasi($request);
+        $agen = DB::transaction(fn () => Agen::create($data + ['kode_agen' => $this->kodeBerikut()]));
 
-        // Kode agen di-generate di server, bukan dari input form
-        $kodeAgen = $this->generateKodeAgen();
-
-        $nilai   = $validated['nilai_penjualan'] ?? 0;
-        $persen  = $validated['komisi_persen'] ?? 0;
-        $dibayar = $validated['dibayar'] ?? 0;
-
-        $terhitung = round($nilai * ($persen / 100), 2);
-        $sisa      = $terhitung - $dibayar;
-
-        Agen::create([
-            ...$validated,
-            'kode_agen'        => $kodeAgen,
-            'komisi_terhitung' => $terhitung,
-            'sisa_komisi'      => $sisa,
-        ]);
-
-        return redirect()->route('agen.index')->with('success', "Agen baru ({$kodeAgen}) berhasil ditambahkan.");
-    }
-
-    public function show(Agen $agen)
-    {
-        return view('agen.show', compact('agen'));
-    }
-
-    public function edit(Agen $agen)
-    {
-        return view('agen.edit', compact('agen'));
+        return redirect()->route('agen.show', $agen)->with('success', "Agen {$agen->nama_agen} ({$agen->kode_agen}) berhasil ditambahkan.");
     }
 
     public function update(Request $request, Agen $agen)
     {
-        $validated = $request->validate([
-            'nama_agen'        => 'required|string|max:255',
-            'no_hp'            => 'nullable|string|max:20',
-            'lead'             => 'nullable|integer|min:0',
-            'prospek'          => 'nullable|integer|min:0',
-            'closing'          => 'nullable|integer|min:0',
-            'nilai_penjualan'  => 'nullable|numeric|min:0',
-            'komisi_persen'    => 'nullable|numeric|min:0|max:100',
-            'dibayar'          => 'nullable|numeric|min:0',
-        ]);
+        $agen->update($this->validasi($request, $agen));
 
-        // kode_agen TIDAK diubah lagi setelah dibuat pertama kali
-
-        $nilai   = $validated['nilai_penjualan'] ?? 0;
-        $persen  = $validated['komisi_persen'] ?? 0;
-        $dibayar = $validated['dibayar'] ?? 0;
-
-        $terhitung = round($nilai * ($persen / 100), 2);
-        $sisa      = $terhitung - $dibayar;
-
-        $agen->update([
-            ...$validated,
-            'komisi_terhitung' => $terhitung,
-            'sisa_komisi'      => $sisa,
-        ]);
-
-        return redirect()->route('agen.index')->with('success', 'Data agen berhasil diperbarui.');
+        return back()->with('success', 'Data agen berhasil diperbarui.');
     }
 
     public function destroy(Agen $agen)
     {
+        if ($agen->leads()->exists() || $agen->transaksis()->exists() || $agen->komisiPembayarans()->exists()) {
+            return back()->with('error', "{$agen->nama_agen} sudah memiliki lead/transaksi/komisi. Nonaktifkan saja agar riwayatnya tetap tersimpan.");
+        }
         $agen->delete();
 
-        return redirect()->route('agen.index')->with('success', 'Data agen berhasil dihapus.');
+        return redirect()->route('agen.index')->with('success', 'Agen berhasil dihapus.');
     }
 
-    /**
-     * Generate kode agen berikutnya, format: AG-001, AG-002, dst.
-     */
-    private function generateKodeAgen()
+    public function nextKode()
     {
-        // Ambil semua kode_agen yang ada, terus cari angka terbesarnya secara manual di PHP
-        // (biar gak bergantung sama sintaks SQL yang beda-beda tiap database)
-        $semuaKode = Agen::pluck('kode_agen');
-
-        $angkaTerbesar = 0;
-        foreach ($semuaKode as $kode) {
-            $angka = (int) substr($kode, 3); // ambil bagian setelah "AG-"
-            if ($angka > $angkaTerbesar) {
-                $angkaTerbesar = $angka;
-            }
-        }
-
-        $nextNumber = $angkaTerbesar + 1;
-
-        return 'AG-' . str_pad($nextNumber, 3, '0', STR_PAD_LEFT);
+        return response()->json(['kode' => $this->kodeBerikut()]);
     }
 
-    private function formatSingkat($angka)
+    public function bayarKomisi(Request $request, Agen $agen)
     {
-        if ($angka >= 1_000_000_000) {
-            return rtrim(rtrim(number_format($angka / 1_000_000_000, 2, ',', '.'), '0'), ',') . ' M';
-        }
-        if ($angka >= 1_000_000) {
-            return rtrim(rtrim(number_format($angka / 1_000_000, 0, ',', '.'), '0'), ',') . ' Juta';
-        }
-        return number_format($angka, 0, ',', '.');
+        $data = $request->validate([
+            'tanggal'      => ['required', 'date', 'before_or_equal:today'],
+            'nominal'      => ['required', 'numeric', 'min:1'],
+            'metode'       => ['required', 'in:tunai,transfer'],
+            'transaksi_id' => ['nullable', Rule::exists('transaksi_penjualans', 'id')->where('agen_id', $agen->id)],
+            'catatan'      => ['nullable', 'string', 'max:500'],
+        ], [], ['transaksi_id' => 'transaksi']);
+
+        $p = $this->komisi->bayar($agen, $data, auth()->id());
+
+        return back()->with('success', 'Pembayaran komisi ' . rupiah($p->nominal) . ' tercatat dan masuk Kas Proyek sebagai pengeluaran.');
+    }
+
+    public function hapusBayarKomisi(Agen $agen, KomisiPembayaran $pembayaran)
+    {
+        abort_unless($pembayaran->agen_id === $agen->id, 404);
+        $this->komisi->hapusBayar($pembayaran);
+
+        return back()->with('success', 'Pembayaran komisi dihapus beserta catatan kasnya.');
+    }
+
+    private function validasi(Request $request, ?Agen $agen = null): array
+    {
+        $data = $request->validate([
+            'nama_agen'     => ['required', 'string', 'max:255'],
+            'no_hp'         => ['nullable', 'string', 'max:20'],
+            'email'         => ['nullable', 'email', 'max:255'],
+            'komisi_persen' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'aktif'         => ['nullable', 'boolean'],
+            'catatan'       => ['nullable', 'string', 'max:1000'],
+        ], [], ['nama_agen' => 'nama agen']);
+        $data['aktif'] = $request->boolean('aktif', $agen?->aktif ?? true);
+
+        return $data;
+    }
+
+    private function kodeBerikut(): string
+    {
+        $maks = Agen::lockForUpdate()->pluck('kode_agen')->map(fn ($k) => (int) substr($k, 3))->max() ?? 0;
+
+        return 'AG-' . str_pad((string) ($maks + 1), 3, '0', STR_PAD_LEFT);
     }
 }

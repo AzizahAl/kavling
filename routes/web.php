@@ -5,6 +5,7 @@ use App\Http\Controllers\KasProyekController;
 use App\Http\Controllers\KavlingController;
 use App\Http\Controllers\AgenController;
 use App\Http\Controllers\KonsumenController;
+use App\Http\Controllers\LeadController;
 use App\Http\Controllers\PembayaranController;
 use App\Http\Controllers\ProyekController;
 use App\Http\Controllers\RabController;
@@ -32,6 +33,20 @@ Route::resource('data-agen', AgenController::class)
     ->names('agen')
     ->parameters(['data-agen' => 'agen'])
     ->except(['create', 'edit']);
+Route::post('/data-agen/{agen}/komisi', [AgenController::class, 'bayarKomisi'])->name('agen.komisi.store');
+Route::delete('/data-agen/{agen}/komisi/{pembayaran}', [AgenController::class, 'hapusBayarKomisi'])->name('agen.komisi.destroy');
+
+// --- Marketing ---
+Route::prefix('lead-harian')->name('lead.')->controller(LeadController::class)->group(function () {
+    Route::get('/', 'index')->name('index');
+    Route::get('/rekap', 'rekap')->name('rekap');
+    Route::post('/', 'store')->name('store');
+    Route::put('/{lead}', 'update')->name('update');
+    Route::delete('/{lead}', 'destroy')->name('destroy');
+    Route::post('/{lead}/prospek', 'prospek')->name('prospek');
+    Route::post('/{lead}/closing', 'closing')->name('closing');
+    Route::post('/{lead}/mundur', 'mundur')->name('mundur');
+});
 
 // --- Penjualan ---
 Route::prefix('transaksi-penjualan')->name('transaksi-penjualan.')->controller(TransaksiPenjualanController::class)->group(function () {

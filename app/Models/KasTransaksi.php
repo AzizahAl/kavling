@@ -10,7 +10,7 @@ class KasTransaksi extends Model
     protected $table = 'kas_transaksis';
 
     protected $fillable = [
-        'tanggal', 'kode', 'kategori', 'jenis', 'asal', 'pembayaran_id', 'transaksi_id',
+        'tanggal', 'kode', 'kategori', 'jenis', 'asal', 'pembayaran_id', 'transaksi_id', 'komisi_pembayaran_id',
         'uraian', 'nominal', 'sumber', 'catatan',
     ];
 

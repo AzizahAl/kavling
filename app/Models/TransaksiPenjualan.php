@@ -65,6 +65,11 @@ class TransaksiPenjualan extends Model
         return $this->hasOne(ChecklistLegal::class, 'transaksi_id');
     }
 
+    public function lead(): HasOne
+    {
+        return $this->hasOne(Lead::class, 'transaksi_id');
+    }
+
     public function kasRefunds(): HasMany
     {
         return $this->hasMany(KasTransaksi::class, 'transaksi_id')->where('asal', 'refund');

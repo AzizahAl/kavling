@@ -1,247 +1,79 @@
 @extends('layouts.app')
+@section('title', 'Agen & Marketing')
+
+@php
+    $kosong = ['id' => null, 'nama_agen' => '', 'no_hp' => '', 'email' => '', 'komisi_persen' => '', 'aktif' => true, 'catatan' => ''];
+    $awal = old('_form') === 'agen' ? array_merge($kosong, request()->old(), ['id' => old('_id'), 'aktif' => (bool) old('aktif')]) : $kosong;
+@endphp
 
 @section('content')
-<div class="p-6">
+<div x-data="{ a: @js($awal), get aksiAgen() { return this.a.id ? '{{ url('data-agen') }}/' + this.a.id : '{{ route('agen.store') }}' } }">
 
-    {{-- Breadcrumb --}}
-    <p class="text-sm text-gray-500 mb-1">Data Master &gt; <span class="text-gray-800 font-medium">Data Agen & Marketing</span></p>
-    <h1 class="text-2xl font-bold text-gray-900">Data Agen & Marketing</h1>
-    <p class="text-gray-500 mb-6">Kelola performa agen, prospek, closing, dan komisi penjualan.</p>
+<x-page-header title="Agen & Marketing" subtitle="Lead, prospek, closing, penjualan, dan komisi dihitung otomatis dari lead harian dan transaksi."
+               :breadcrumbs="['Data Master' => null, 'Agen & Marketing' => null]">
+    <x-slot:actions>
+        <a href="{{ route('lead.rekap') }}" class="btn btn-secondary"><x-icon name="chart" class="h-4 w-4"/> Rekap Lead</a>
+        <button type="button" class="btn btn-primary" x-on:click="a = @js($kosong); $dispatch('open-modal', 'agen')"><x-icon name="plus" class="h-4 w-4"/> Tambah Agen</button>
+    </x-slot:actions>
+</x-page-header>
 
-    @if(session('success'))
-        <div class="mb-4 rounded-lg bg-green-50 text-green-700 px-4 py-3 text-sm">
-            {{ session('success') }}
-        </div>
-    @endif
-
-    {{-- Stat Cards --}}
-    <div class="grid grid-cols-2 md:grid-cols-6 gap-4 mb-6">
-        <div class="bg-white rounded-xl border p-4">
-            <p class="text-xs text-gray-500 uppercase flex items-center gap-1.5">
-                <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-                Total Agen
-            </p>
-            <p class="text-2xl font-bold text-gray-900 mt-1">{{ $stats['total_agen'] }} <span class="text-sm font-normal text-gray-400">Agen</span></p>
-        </div>
-        <div class="bg-white rounded-xl border p-4">
-            <p class="text-xs text-gray-500 uppercase flex items-center gap-1.5">
-                <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/><path d="M8 4v4"/><path d="M16 4v4"/></svg>
-                Total Lead
-            </p>
-            <p class="text-2xl font-bold text-gray-900 mt-1">{{ $stats['total_lead'] }} <span class="text-sm font-normal text-gray-400">Lead</span></p>
-        </div>
-        <div class="bg-white rounded-xl border p-4">
-            <p class="text-xs text-gray-500 uppercase flex items-center gap-1.5">
-                <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M6 21v-2a6 6 0 0 1 12 0v2"/></svg>
-                Total Prospek
-            </p>
-            <p class="text-2xl font-bold text-gray-900 mt-1">{{ $stats['total_prospek'] }} <span class="text-sm font-normal text-gray-400">Prospek</span></p>
-        </div>
-        <div class="bg-white rounded-xl border p-4">
-            <p class="text-xs text-gray-500 uppercase flex items-center gap-1.5">
-                <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-                Total Closing
-            </p>
-            <p class="text-2xl font-bold text-gray-900 mt-1">{{ $stats['total_closing'] }} <span class="text-sm font-normal text-gray-400">Closing</span></p>
-        </div>
-        <div class="bg-white rounded-xl border p-4">
-            <p class="text-xs text-gray-500 uppercase flex items-center gap-1.5">
-                <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
-                Nilai Penjualan
-            </p>
-            <p class="text-2xl font-bold text-gray-900 mt-1">Rp{{ $stats['nilai_penjualan_short'] }}</p>
-        </div>
-        <div class="bg-white rounded-xl border p-4">
-            <p class="text-xs text-gray-500 uppercase flex items-center gap-1.5">
-                <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V7l8-4 8 4v14"/><path d="M9 9h1"/><path d="M9 13h1"/><path d="M14 9h1"/><path d="M14 13h1"/></svg>
-                Total Komisi
-            </p>
-            <p class="text-2xl font-bold text-gray-900 mt-1">Rp{{ $stats['total_komisi_short'] }}</p>
-        </div>
-    </div>
-
-    {{-- Toolbar: tambah + search + filter --}}
-    <form method="GET" action="{{ route('agen.index') }}" class="flex flex-wrap items-center gap-3 mb-4">
-        <button type="button" onclick="openTambahAgenModal()"
-           class="bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-800 flex items-center gap-1.5">
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            Tambah Agen
-        </button>
-
-        <div class="relative">
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            <input type="text" name="search" value="{{ request('search') }}" placeholder="Cari Nama / Kode"
-                   class="border rounded-lg pl-9 pr-3 py-2 text-sm text-gray-700 w-56">
-        </div>
-
-        <button type="button" onclick="toggleFilterPanel()"
-                class="border rounded-lg px-3 py-2 text-sm text-gray-700 flex items-center gap-1.5 hover:bg-gray-50">
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
-            Filter
-        </button>
-
-        @if(request('search') || request('sort'))
-            <a href="{{ route('agen.index') }}" class="text-sm text-green-600 font-medium">Reset Filter</a>
-        @endif
-
-        <span class="ml-auto text-sm text-gray-500">Menampilkan {{ $agens->count() }} dari {{ $stats['total_agen'] }} agen</span>
-    </form>
-
-    {{-- Panel Filter (opsional, disembunyikan default) --}}
-    <div id="filterPanel" class="hidden bg-white border rounded-xl p-4 mb-4 grid grid-cols-1 md:grid-cols-4 gap-3">
-        <div>
-            <label class="block text-xs text-gray-500 mb-1">Urutkan Berdasarkan</label>
-            <select name="sort" onchange="this.form.submit()" form="filterForm"
-                    class="w-full border rounded-lg px-3 py-2 text-sm text-gray-700">
-                <option value="">Default</option>
-                <option value="closing_desc" {{ request('sort') == 'closing_desc' ? 'selected' : '' }}>Closing Terbanyak</option>
-                <option value="komisi_desc" {{ request('sort') == 'komisi_desc' ? 'selected' : '' }}>Komisi Tertinggi</option>
-                <option value="sisa_desc" {{ request('sort') == 'sisa_desc' ? 'selected' : '' }}>Sisa Komisi Tertinggi</option>
-            </select>
-        </div>
-    </div>
-
-    {{-- Tabel --}}
-    <div class="bg-white rounded-xl border overflow-x-auto">
-        <table class="min-w-full text-sm">
-            <thead class="bg-gray-50 text-gray-500 uppercase text-xs">
-                <tr>
-                    <th class="px-4 py-3 text-left">Kode Agen</th>
-                    <th class="px-4 py-3 text-left">Nama Agen</th>
-                    <th class="px-4 py-3 text-left">No HP</th>
-                    <th class="px-4 py-3 text-left">Lead</th>
-                    <th class="px-4 py-3 text-left">Prospek</th>
-                    <th class="px-4 py-3 text-left">Closing</th>
-                    <th class="px-4 py-3 text-left">Nilai Penjualan</th>
-                    <th class="px-4 py-3 text-left">Komisi %</th>
-                    <th class="px-4 py-3 text-left">Komisi Terhitung</th>
-                    <th class="px-4 py-3 text-left">Dibayar</th>
-                    <th class="px-4 py-3 text-left">Sisa Komisi</th>
-                    <th class="px-4 py-3 text-left">Action</th>
-                </tr>
-            </thead>
-            <tbody class="divide-y">
-                @forelse($agens as $agen)
-                    <tr class="hover:bg-gray-50">
-                        <td class="px-4 py-3 font-medium text-gray-900">{{ $agen->kode_agen }}</td>
-                        <td class="px-4 py-3">{{ $agen->nama_agen }}</td>
-                        <td class="px-4 py-3">{{ $agen->no_hp }}</td>
-                        <td class="px-4 py-3">{{ $agen->lead }}</td>
-                        <td class="px-4 py-3">{{ $agen->prospek }}</td>
-                        <td class="px-4 py-3">{{ $agen->closing }}</td>
-                        <td class="px-4 py-3">Rp{{ number_format($agen->nilai_penjualan, 0, ',', '.') }}</td>
-                        <td class="px-4 py-3">{{ rtrim(rtrim(number_format($agen->komisi_persen, 2, ',', '.'), '0'), ',') }}%</td>
-                        <td class="px-4 py-3">Rp{{ number_format($agen->komisi_terhitung, 0, ',', '.') }}</td>
-                        <td class="px-4 py-3 text-green-600 font-medium">Rp{{ number_format($agen->dibayar, 0, ',', '.') }}</td>
-                        <td class="px-4 py-3 font-medium {{ $agen->sisa_komisi > 0 ? 'text-red-600' : 'text-gray-700' }}">
-                            Rp{{ number_format($agen->sisa_komisi, 0, ',', '.') }}
-                        </td>
-                        <td class="px-4 py-3">
-                            <div class="flex items-center gap-3">
-                                <a href="{{ route('agen.show', $agen) }}" title="Detail" class="text-gray-500 hover:text-gray-800">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                                </a>
-                                <a href="{{ route('agen.edit', $agen) }}" title="Edit" class="text-blue-500 hover:text-blue-700">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                                </a>
-                                <form action="{{ route('agen.destroy', $agen) }}" method="POST"
-                                      onsubmit="return confirm('Yakin hapus agen ini?')">
-                                    @csrf
-                                    @method('DELETE')
-                                    <button type="submit" title="Hapus" class="text-red-500 hover:text-red-700">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
-                                    </button>
-                                </form>
-                            </div>
-                        </td>
-                    </tr>
-                @empty
-                    <tr>
-                        <td colspan="12" class="px-4 py-8 text-center text-gray-400">Belum ada data agen.</td>
-                    </tr>
-                @endforelse
-            </tbody>
-        </table>
-    </div>
-
-    {{-- Modal Tambah Agen --}}
-    <div id="tambahAgenModal" class="fixed inset-0 z-50 hidden items-center justify-center">
-        {{-- Backdrop --}}
-        <div class="absolute inset-0 bg-black/50" onclick="closeTambahAgenModal()"></div>
-
-        {{-- Modal Box --}}
-        <div class="relative bg-white rounded-xl shadow-lg w-full max-w-xl mx-4 max-h-[90vh] overflow-y-auto">
-            <div class="flex items-start justify-between px-6 py-5 border-b">
-                <div>
-                    <h2 class="text-lg font-bold text-gray-900">Tambah Agen Baru</h2>
-                    <p class="text-sm text-gray-500 mt-1">Lengkapi informasi agen untuk menambahkan data agen dan marketing baru.</p>
-                </div>
-                <button type="button" onclick="closeTambahAgenModal()"
-                        class="text-gray-400 hover:text-gray-700">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                </button>
-            </div>
-
-            <form action="{{ route('agen.store') }}" method="POST" id="formTambahAgen" class="p-6 space-y-5" autocomplete="off">
-                @csrf
-                @include('agen._form', ['nextKodeAgen' => $nextKodeAgen, 'suffix' => 'new'])
-
-                <div class="flex justify-end gap-3 pt-4 border-t mt-2">
-                    <button type="button" onclick="closeTambahAgenModal()"
-                            class="px-5 py-2 rounded-lg text-sm font-medium border text-gray-700 hover:bg-gray-50">
-                        Batal
-                    </button>
-                    <button type="submit" class="bg-gray-900 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-gray-800">
-                        Simpan Agen
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
-
+<div class="mb-6 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6 sm:gap-4">
+    <x-stat-card label="Agen" :value="$stats['agen']" icon="users" tone="dark"/>
+    <x-stat-card label="Lead" :value="$stats['lead']"/>
+    <x-stat-card label="Prospek" :value="$stats['prospek']"/>
+    <x-stat-card label="Closing" :value="$stats['closing']"/>
+    <x-stat-card label="Nilai Penjualan" :value="rupiah_singkat($stats['penjualan'])" :hint="rupiah($stats['penjualan'])"/>
+    <x-stat-card label="Sisa Komisi" :value="rupiah_singkat($stats['sisa'])" :hint="'Hak ' . rupiah($stats['hak'])" tone="gold"/>
 </div>
 
-<script>
-    function openTambahAgenModal() {
-        const modal = document.getElementById('tambahAgenModal');
-        modal.classList.remove('hidden');
-        modal.classList.add('flex');
+<div class="card">
+    <x-filter-bar placeholder="Cari nama atau kode agen…">
+        <x-select name="status" :options="['aktif' => 'Aktif', 'nonaktif' => 'Nonaktif']" :value="request('status')" placeholder="Semua status" class="sm:w-40"/>
+        <x-select name="urut" :options="['closing' => 'Closing terbanyak', 'penjualan' => 'Penjualan terbesar', 'sisa' => 'Sisa komisi terbesar']" :value="request('urut')" placeholder="Urut kode" class="sm:w-52"/>
+    </x-filter-bar>
 
-        if (typeof resetFormAgen === 'function') {
-            resetFormAgen();
-        }
+    @if ($agens->isEmpty())
+        <x-empty-state title="Belum ada agen" message="Tambahkan agen marketing untuk mulai mencatat lead dan komisi.">
+            <button type="button" class="btn btn-primary" x-on:click="a = @js($kosong); $dispatch('open-modal', 'agen')"><x-icon name="plus" class="h-4 w-4"/> Tambah Agen</button>
+        </x-empty-state>
+    @else
+        <div class="table-wrap">
+            <table class="table">
+                <thead><tr><th>Agen</th><th class="text-right">Lead</th><th class="text-right">Prospek</th><th class="text-right">Closing</th><th class="text-right">Nilai Penjualan</th><th class="text-right">Komisi</th><th class="text-right">Hak / Dibayar</th><th class="text-right">Sisa</th><th class="text-right">Aksi</th></tr></thead>
+                <tbody>
+                    @foreach ($agens as $ag)
+                        @php $n = $ag->angka; @endphp
+                        <tr>
+                            <td>
+                                <a href="{{ route('agen.show', $ag) }}" class="font-semibold text-slate-900 hover:text-forest-700">{{ $ag->nama_agen }}</a>
+                                @unless ($ag->aktif)<x-badge status="batal" label="Nonaktif" class="ml-1"/>@endunless
+                                <div class="text-xs text-slate-500">{{ $ag->kode_agen }}{{ $ag->no_hp ? ' · ' . $ag->no_hp : '' }}</div>
+                            </td>
+                            <td class="text-right tabular-nums">{{ $n['lead'] }}</td>
+                            <td class="text-right tabular-nums">{{ $n['prospek'] }}</td>
+                            <td class="text-right font-semibold tabular-nums">{{ $n['closing'] }}</td>
+                            <td class="text-right tabular-nums">{{ rupiah($n['nilai_penjualan']) }}<div class="text-xs text-slate-500">{{ $n['transaksi'] }} transaksi</div></td>
+                            <td class="text-right tabular-nums">{{ $n['persen'] !== null ? persen($n['persen'], false, 2) : '—' }}</td>
+                            <td class="text-right tabular-nums">{{ $n['komisi_hak'] !== null ? rupiah($n['komisi_hak']) : '—' }}<div class="text-xs text-slate-500">dibayar {{ rupiah($n['dibayar']) }}</div></td>
+                            <td @class(['text-right font-semibold tabular-nums', 'text-red-600' => ($n['sisa'] ?? 0) < 0])>{{ $n['sisa'] !== null ? rupiah($n['sisa']) : '—' }}</td>
+                            <td>
+                                <div class="flex justify-end gap-1">
+                                    <a href="{{ route('agen.show', $ag) }}" class="btn-icon" title="Detail"><x-icon name="eye" class="h-[18px] w-[18px]"/></a>
+                                    <button type="button" class="btn-icon" title="Ubah" x-on:click="a = @js(['id' => $ag->id, 'nama_agen' => $ag->nama_agen, 'no_hp' => $ag->no_hp, 'email' => $ag->email, 'komisi_persen' => $ag->komisi_persen, 'aktif' => $ag->aktif, 'catatan' => $ag->catatan]); $dispatch('open-modal', 'agen')"><x-icon name="pencil" class="h-[18px] w-[18px]"/></button>
+                                    <x-delete-button :action="route('agen.destroy', $ag)" title="Hapus agen {{ $ag->nama_agen }}?" message="Agen yang sudah punya lead, transaksi, atau komisi tidak bisa dihapus — nonaktifkan saja."/>
+                                </div>
+                            </td>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+    @endif
+    @if (\App\Services\Pengaturan::get('komisi_default_persen') === null)
+        <p class="border-t border-slate-100 px-5 py-3 text-xs text-amber-700">Komisi bawaan belum diatur di <a href="{{ route('proyek.index') }}#grup-penjualan" class="underline">Pengaturan Proyek</a>. Agen tanpa persen sendiri ditampilkan "—".</p>
+    @endif
+</div>
 
-                // ambil kode agen terbaru langsung dari server tiap modal dibuka, biar gak pernah stale
-        fetch("{{ route('agen.next-kode') }}?t=" + Date.now(), { cache: 'no-store' })
-            .then(res => res.json())
-            .then(data => {
-                const preview = document.getElementById('kodeAgenPreview');
-                if (preview) preview.textContent = data.kode;
-            })
-            .catch(() => {
-                // kalau fetch gagal, biarin aja preview lama, gak fatal
-            });
-    }
-
-    function closeTambahAgenModal() {
-        const modal = document.getElementById('tambahAgenModal');
-        modal.classList.add('hidden');
-        modal.classList.remove('flex');
-
-        // reset juga pas ditutup, biar dobel aman
-        if (typeof resetFormAgen === 'function') {
-            resetFormAgen();
-        }
-    }
-
-    function toggleFilterPanel() {
-        document.getElementById('filterPanel').classList.toggle('hidden');
-    }
-
-    document.addEventListener('DOMContentLoaded', function () {
-        @if($errors->any())
-            openTambahAgenModal();
-        @endif
-    });
-</script>
+@include('agen._modal')
+</div>
 @endsection
