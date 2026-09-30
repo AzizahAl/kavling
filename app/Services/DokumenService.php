@@ -3,12 +3,51 @@
 namespace App\Services;
 
 use App\Models\Pembayaran;
+use App\Models\TransaksiPenjualan;
 use App\Support\Terbilang;
 
 /** Data cetak dokumen (kwitansi, SPK, PPJB) dari satu sumber: transaksi & pembayaran. */
 class DokumenService
 {
     public function __construct(private AngsuranService $angsuran) {}
+
+    /** Nomor dokumen mengikuti Excel: TR/PPJB/2026/0001 dari TRX-2026-0001. */
+    public function nomor(TransaksiPenjualan $t, string $jenis): string
+    {
+        $simpan = $t->checklist?->{'nomor_' . strtolower($jenis)};
+        if ($simpan) {
+            return $simpan;
+        }
+        [, $tahun, $urut] = array_pad(explode('-', $t->kode_transaksi), 3, '');
+
+        return sprintf('%s/%s/%s/%s', Pengaturan::get('prefix_kavling', 'TR'), strtoupper($jenis), $tahun, $urut);
+    }
+
+    /** Data bersama SPK & PPJB (sheet PPJB_OTOMATIS). */
+    public function dataPerjanjian(TransaksiPenjualan $t, string $jenis): array
+    {
+        $t->loadMissing('konsumen', 'kavling', 'pembayarans', 'checklist', 'agen');
+
+        return [
+            'jenis'        => $jenis,
+            'nomor'        => $this->nomor($t, $jenis),
+            't'            => $t,
+            'k'            => $t->konsumen,
+            'proyek'       => Pengaturan::get('nama_proyek', 'Tectona Residen'),
+            'alamatProyek' => Pengaturan::get('alamat_proyek'),
+            'pengelola'    => Pengaturan::get('nama_pengelola'),
+            'kota'         => Pengaturan::get('kota_dokumen'),
+            'statusLegal'  => Pengaturan::get('status_legal_lahan'),
+            'tanggal'      => $jenis === 'PPJB' ? ($t->checklist?->ppjb_tanggal ?? today()) : ($t->checklist?->spk_tanggal ?? $t->tanggal),
+            'dibayar'      => $t->pokokTerbayar(),
+            'sisa'         => $t->sisa(),
+            'cicilan'      => $this->angsuran->cicilanPerBulan($t),
+            'jadwal'       => $t->isAngsuran() ? $t->jadwalAngsurans()->get() : collect(),
+            'terbilangHarga' => Terbilang::rupiah((int) round($t->nilai_jual)),
+            'kurang'       => collect(['nama_pengelola' => 'Nama Pengelola / Penjual', 'kota_dokumen' => 'Kota Penandatanganan', 'alamat_proyek' => 'Alamat Proyek'])
+                                ->filter(fn ($l, $key) => blank(Pengaturan::get($key)))->values(),
+        ];
+    }
 
     public function kwitansi(Pembayaran $p): array
     {

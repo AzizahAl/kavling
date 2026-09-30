@@ -5,6 +5,8 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\KasProyekController;
 use App\Http\Controllers\KavlingController;
 use App\Http\Controllers\AgenController;
+use App\Http\Controllers\AngsuranController;
+use App\Http\Controllers\DokumenController;
 use App\Http\Controllers\KonsumenController;
 use App\Http\Controllers\LeadController;
 use App\Http\Controllers\PembayaranController;
@@ -67,6 +69,14 @@ Route::prefix('transaksi-penjualan/{transaksi}/pembayaran')->name('pembayaran.')
 });
 Route::get('/kwitansi/{pembayaran}', [PembayaranController::class, 'kwitansi'])->name('pembayaran.kwitansi');
 Route::get('/kwitansi/{pembayaran}/unduh', [PembayaranController::class, 'kwitansiUnduh'])->name('pembayaran.kwitansi.unduh');
+
+Route::get('/angsuran-piutang', [AngsuranController::class, 'index'])->name('angsuran.index');
+
+// --- Dokumen ---
+Route::get('/checklist-legal', [DokumenController::class, 'legal'])->name('legal.index');
+Route::put('/checklist-legal/{checklist}', [DokumenController::class, 'updateLegal'])->name('legal.update');
+Route::get('/transaksi-penjualan/{transaksi}/dokumen/{jenis}', [DokumenController::class, 'lihat'])->name('dokumen.lihat');
+Route::get('/transaksi-penjualan/{transaksi}/dokumen/{jenis}/unduh', [DokumenController::class, 'unduh'])->name('dokumen.unduh');
 
 Route::get('/data-konsumen/cari', [KonsumenController::class, 'cari'])->name('konsumen.cari');
 Route::resource('data-konsumen', KonsumenController::class)

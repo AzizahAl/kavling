@@ -194,6 +194,16 @@
                 @endforeach
             </ul>
             <p class="mt-3 text-xs text-slate-500">Kavling berstatus Terjual setelah PPJB ditandai selesai (ditandatangani).</p>
+            @unless ($t->isBatal())
+                <div class="mt-4 grid grid-cols-2 gap-2">
+                    <a href="{{ route('dokumen.lihat', [$t, 'spk']) }}" class="btn btn-sm btn-secondary"><x-icon name="document" class="h-4 w-4"/> SPK</a>
+                    <a href="{{ route('dokumen.lihat', [$t, 'ppjb']) }}" class="btn btn-sm btn-secondary"><x-icon name="document" class="h-4 w-4"/> PPJB</a>
+                    <a href="{{ route('legal.index') }}" class="btn btn-sm btn-ghost col-span-2">Ubah checklist legal</a>
+                </div>
+            @endunless
+            @if ($t->lead)
+                <p class="mt-3 text-xs text-slate-500">Closing dari lead <a href="{{ route('lead.index', ['cari' => $t->lead->kode]) }}" class="font-medium text-forest-700 hover:underline">{{ $t->lead->kode }}</a>.</p>
+            @endif
         </x-card>
     </div>
 </div>
