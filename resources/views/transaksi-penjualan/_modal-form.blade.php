@@ -168,54 +168,67 @@
                 </div>
 
                 {{-- 4. Informasi Pembayaran --}}
-                <div class="pt-6 border-t border-slate-100">
-                    <div class="flex items-center gap-2.5 mb-4">
-                        <span class="flex items-center justify-center w-6 h-6 rounded-full bg-slate-900 text-white text-xs font-semibold shrink-0">4</span>
-                        <h3 class="font-semibold text-slate-800 text-sm tracking-wide">Informasi Pembayaran</h3>
-                    </div>
+<div class="pt-6 border-t border-slate-100">
+    <div class="flex items-center gap-2.5 mb-4">
+        <span class="flex items-center justify-center w-6 h-6 rounded-full bg-slate-900 text-white text-xs font-semibold shrink-0">4</span>
+        <h3 class="font-semibold text-slate-800 text-sm tracking-wide">Informasi Pembayaran</h3>
+    </div>
 
-                    <label class="text-xs font-medium text-slate-500 block mb-2">Jenis Pembayaran</label>
-                    <div class="grid grid-cols-2 gap-2 mb-4">
-                        <template x-for="opt in ['cash','angsuran']" :key="opt">
-                            <button type="button" @click="form.jenis_pembayaran = opt"
-                                :class="form.jenis_pembayaran === opt
-                                    ? 'bg-slate-900 text-white border-slate-900'
-                                    : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'"
-                                class="px-3 py-2 rounded-lg text-sm font-medium capitalize transition-colors duration-150 border"
-                                x-text="opt"></button>
-                        </template>
-                    </div>
+    <label class="text-xs font-medium text-slate-500 block mb-2">Jenis Pembayaran</label>
+    <div class="grid grid-cols-2 gap-2 mb-4">
+        <template x-for="opt in ['cash','angsuran']" :key="opt">
+            <button type="button" @click="form.jenis_pembayaran = opt"
+                :class="form.jenis_pembayaran === opt
+                    ? 'bg-slate-900 text-white border-slate-900'
+                    : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'"
+                class="px-3 py-2 rounded-lg text-sm font-medium capitalize transition-colors duration-150 border"
+                x-text="opt"></button>
+        </template>
+    </div>
 
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="text-xs font-medium text-slate-500">Nilai Jual</label>
-                            <input type="text" :value="'Rp' + formatRupiah(kavlingTerpilih.harga_jual || 0)" disabled
-                                class="mt-1.5 w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm bg-slate-50 text-slate-500 font-medium">
-                        </div>
-                        <div x-show="form.jenis_pembayaran === 'angsuran'">
-                            <label class="text-xs font-medium text-slate-500">Tenor (bulan)</label>
-                            <input type="number" x-model.number="form.tenor" min="1"
-                                class="mt-1.5 w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-slate-800/10 focus:border-slate-800 outline-none transition-shadow">
-                        </div>
-                    </div>
+    <div class="grid grid-cols-2 gap-4">
+        <div>
+            <label class="text-xs font-medium text-slate-500">Nilai Jual</label>
+            <input type="text" :value="'Rp' + formatRupiah(nilaiJual)" disabled
+                class="mt-1.5 w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm bg-slate-50 text-slate-500 font-medium">
+        </div>
+        <div>
+            <label class="text-xs font-medium text-slate-500">Sudah Dibayar</label>
+            <input type="text" :value="'Rp' + formatRupiah(sudahBayar)" disabled
+                class="mt-1.5 w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm bg-slate-50 text-slate-500 font-medium">
+        </div>
+    </div>
 
-                    <div x-show="form.jenis_pembayaran === 'angsuran'" class="mt-4">
-                        <label class="text-xs font-medium text-slate-500">Nominal DP</label>
-                        <input type="number" x-model.number="form.nominal_dp" min="0"
-                            class="mt-1.5 w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-slate-800/10 focus:border-slate-800 outline-none transition-shadow">
-                    </div>
+    <div x-show="form.jenis_pembayaran === 'angsuran'" class="mt-4">
+        <label class="text-xs font-medium text-slate-500">Tenor (bulan)</label>
+        <input type="number" x-model.number="form.tenor" min="1"
+            class="mt-1.5 w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-slate-800/10 focus:border-slate-800 outline-none transition-shadow">
+    </div>
 
-                    <div class="mt-4 grid grid-cols-2 divide-x divide-slate-200 bg-slate-50 border border-slate-200 rounded-lg overflow-hidden">
-                        <div class="px-4 py-3">
-                            <p class="text-[11px] text-slate-400 uppercase tracking-wide font-medium">Total Bayar Saat Ini</p>
-                            <p class="font-semibold text-slate-900 text-base mt-0.5" x-text="'Rp' + formatRupiah(totalBayar)"></p>
-                        </div>
-                        <div class="px-4 py-3">
-                            <p class="text-[11px] text-slate-400 uppercase tracking-wide font-medium">Sisa Pembayaran</p>
-                            <p class="font-semibold text-base mt-0.5" :class="sisaPembayaran > 0 ? 'text-red-500' : 'text-emerald-600'" x-text="'Rp' + formatRupiah(sisaPembayaran)"></p>
-                        </div>
-                    </div>
-                </div>
+    <div class="mt-4 grid grid-cols-2 gap-4">
+        {{-- Total Bayar Saat Ini: DIKETIK user --}}
+        <div>
+            <label class="text-xs font-medium text-slate-500">Total Bayar Saat Ini</label>
+            <div class="relative mt-1.5">
+                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-500">Rp</span>
+                <input type="text" inputmode="numeric" autocomplete="off" placeholder="0"
+                :value="bayarSekarangTampil"
+                @input="setBayarSekarang($event)"
+                class="w-full border border-slate-300 rounded-lg pl-9 pr-3 py-2.5 text-sm font-semibold text-slate-900 focus:ring-2 focus:ring-slate-800/10 focus:border-slate-800 outline-none transition-shadow">
+            </div>
+        </div>
+
+        {{-- Sisa Pembayaran: otomatis, berkurang saat user mengetik --}}
+        <div>
+            <label class="text-xs font-medium text-slate-500">Sisa Pembayaran</label>
+            <div class="mt-1.5 w-full border border-slate-200 rounded-lg px-3 py-2.5 bg-slate-50">
+                <p class="text-sm font-semibold"
+                   :class="sisaPembayaran > 0 ? 'text-red-500' : 'text-emerald-600'"
+                   x-text="'Rp' + formatRupiah(sisaPembayaran)"></p>
+            </div>
+        </div>
+    </div>
+</div>
 
                 {{-- 5. Data Agen --}}
                 <div class="pt-6 border-t border-slate-100">

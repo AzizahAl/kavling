@@ -29,14 +29,13 @@ class RabController extends Controller
 
         $rabs = $query->latest()->get();
 
-        $totalAnggaran = $rabs->sum('anggaran');
+        $totalAnggaran  = $rabs->sum('anggaran');
         $totalRealisasi = $rabs->sum('realisasi');
-        $totalSelisih = $totalAnggaran - $totalRealisasi;
+        $totalSelisih   = $totalAnggaran - $totalRealisasi;
+        $jumlahSesuai   = $rabs->filter(fn ($r) => $r->status_keuangan === 'sesuai')->count();
+        $jumlahBelum    = $rabs->filter(fn ($r) => $r->status_keuangan === 'belum')->count();
 
-        $jumlahSesuai = $rabs->filter(fn ($r) => $r->status_keuangan === 'sesuai')->count();
-        $jumlahBelum = $rabs->count() - $jumlahSesuai;
-
-        $kategoriList = Rab::select('kategori')->distinct()->pluck('kategori');
+        $kategoriList = Rab::select('kategori')->distinct()->orderBy('kategori')->pluck('kategori');
 
         return view('rab.index', compact(
             'rabs',
@@ -52,42 +51,45 @@ class RabController extends Controller
     public function store(Request $request)
     {
         $data = $request->validate([
-            'kategori'          => 'required|string|max:100',
-            'uraian'            => 'required|string|max:255',
-            'anggaran'          => 'required|numeric|min:0',
-            'status_realisasi'  => 'required|in:belum_direalisasikan,sudah_direalisasikan',
-            'catatan'           => 'nullable|string',
+            'kategori'         => 'required|string|max:100',
+            'uraian'           => 'required|string|max:255',
+            'anggaran'         => 'required|numeric|min:0',
+            'status_realisasi' => 'required|in:belum_direalisasikan,sudah_direalisasikan',
+            'catatan'          => 'nullable|string',
         ]);
+
+        $data['realisasi'] = 0;
 
         Rab::create($data);
 
-        return back()->with('success', 'RAB berhasil ditambahkan.');
+        return redirect()->route('rab.index')->with('success', 'Data RAB berhasil ditambahkan.');
     }
 
     public function update(Request $request, Rab $rab)
     {
         $data = $request->validate([
-            'kategori'          => 'required|string|max:100',
-            'uraian'            => 'required|string|max:255',
-            'anggaran'          => 'required|numeric|min:0',
-            'realisasi'         => 'nullable|numeric|min:0',
-            'status_realisasi'  => 'required|in:belum_direalisasikan,sudah_direalisasikan',
-            'catatan'           => 'nullable|string',
+            'kategori'         => 'required|string|max:100',
+            'uraian'           => 'required|string|max:255',
+            'anggaran'         => 'required|numeric|min:0',
+            'realisasi'        => 'nullable|numeric|min:0',
+            'status_realisasi' => 'required|in:belum_direalisasikan,sudah_direalisasikan',
+            'catatan'          => 'nullable|string',
         ]);
+
+        $data['realisasi'] = $data['realisasi'] ?? 0;
 
         $rab->update($data);
 
-        return back()->with('success', 'RAB berhasil diperbarui.');
+        return redirect()->route('rab.index')->with('success', 'Data RAB berhasil diperbarui.');
     }
 
     public function destroy(Rab $rab)
     {
         $rab->delete();
 
-        return back()->with('success', 'RAB berhasil dihapus.');
+        return redirect()->route('rab.index')->with('success', 'Data RAB berhasil dihapus.');
     }
 
-    // Tombol centang hijau di kolom Aksi: tandai realisasi = anggaran
     public function verifikasi(Rab $rab)
     {
         $rab->update([
@@ -95,6 +97,6 @@ class RabController extends Controller
             'status_realisasi' => 'sudah_direalisasikan',
         ]);
 
-        return back()->with('success', 'RAB berhasil diverifikasi.');
+        return redirect()->route('rab.index')->with('success', 'RAB ditandai sesuai realisasi.');
     }
 }

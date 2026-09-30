@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class Rab extends Model
 {
-    protected $table = 'rabs';
+    protected $table = 'rabs'; // ganti kalau nama tabel Anda berbeda
 
     protected $fillable = [
         'kategori',
@@ -18,40 +18,44 @@ class Rab extends Model
     ];
 
     protected $casts = [
-        'anggaran'  => 'decimal:2',
-        'realisasi' => 'decimal:2',
+        'anggaran'  => 'integer',
+        'realisasi' => 'integer',
     ];
 
-    // Selisih = Anggaran - Realisasi
+    // Selisih = anggaran - realisasi
     public function getSelisihAttribute()
     {
         if (is_null($this->anggaran)) {
             return null;
         }
-        return $this->anggaran - $this->realisasi;
+        return (int) $this->anggaran - (int) $this->realisasi;
     }
 
-    // Status keuangan otomatis (badge di tabel)
-    public function getStatusKeuanganAttribute(): string
+    // belum / sesuai / kurang / lebih
+    public function getStatusKeuanganAttribute()
     {
-        if (is_null($this->anggaran) || $this->anggaran == 0) {
-            return 'belum_dianggarkan';
-        }
+        $anggaran  = (int) $this->anggaran;
+        $realisasi = (int) $this->realisasi;
 
-        if ($this->realisasi == $this->anggaran) {
-            return 'sesuai';
+        if ($realisasi <= 0) {
+            return 'belum';   // realisasi belum diisi
         }
-
-        return $this->realisasi < $this->anggaran ? 'kurang' : 'lebih';
+        if ($realisasi === $anggaran) {
+            return 'sesuai';  // Realisasi = Anggaran
+        }
+        if ($realisasi < $anggaran) {
+            return 'kurang';  // Realisasi < Anggaran
+        }
+        return 'lebih';       // Realisasi > Anggaran
     }
 
-    public function getStatusKeuanganLabelAttribute(): string
+    public function getStatusKeuanganLabelAttribute()
     {
         return match ($this->status_keuangan) {
-            'sesuai'            => 'Sesuai',
-            'kurang'            => 'Kurang',
-            'lebih'             => 'Lebih',
-            default             => 'Belum Dianggarkan',
+            'sesuai' => 'Sesuai Anggaran',
+            'kurang' => 'Di Bawah Anggaran',
+            'lebih'  => 'Melebihi Anggaran',
+            default  => 'Belum Dianggarkan',
         };
     }
 }

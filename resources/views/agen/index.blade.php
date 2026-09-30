@@ -182,9 +182,9 @@
                 </button>
             </div>
 
-            <form action="{{ route('agen.store') }}" method="POST" id="formTambahAgen" class="p-6 space-y-5">
+            <form action="{{ route('agen.store') }}" method="POST" id="formTambahAgen" class="p-6 space-y-5" autocomplete="off">
                 @csrf
-                @include('agen._form')
+                @include('agen._form', ['nextKodeAgen' => $nextKodeAgen, 'suffix' => 'new'])
 
                 <div class="flex justify-end gap-3 pt-4 border-t mt-2">
                     <button type="button" onclick="closeTambahAgenModal()"
@@ -206,43 +206,39 @@
         const modal = document.getElementById('tambahAgenModal');
         modal.classList.remove('hidden');
         modal.classList.add('flex');
+
+        if (typeof resetFormAgen === 'function') {
+            resetFormAgen();
+        }
+
+                // ambil kode agen terbaru langsung dari server tiap modal dibuka, biar gak pernah stale
+        fetch("{{ route('agen.next-kode') }}?t=" + Date.now(), { cache: 'no-store' })
+            .then(res => res.json())
+            .then(data => {
+                const preview = document.getElementById('kodeAgenPreview');
+                if (preview) preview.textContent = data.kode;
+            })
+            .catch(() => {
+                // kalau fetch gagal, biarin aja preview lama, gak fatal
+            });
     }
 
     function closeTambahAgenModal() {
         const modal = document.getElementById('tambahAgenModal');
         modal.classList.add('hidden');
         modal.classList.remove('flex');
+
+        // reset juga pas ditutup, biar dobel aman
+        if (typeof resetFormAgen === 'function') {
+            resetFormAgen();
+        }
     }
 
     function toggleFilterPanel() {
         document.getElementById('filterPanel').classList.toggle('hidden');
     }
 
-    // Auto-hitung Komisi Terhitung & Sisa Komisi di dalam modal
-    function hitungKomisi() {
-        const nilaiInput  = document.getElementById('nilai_penjualan');
-        const persenInput = document.getElementById('komisi_persen');
-        const dibayarInput = document.getElementById('dibayar');
-        const terhitungInput = document.getElementById('komisi_terhitung');
-        const sisaInput = document.getElementById('sisa_komisi');
-
-        const nilai   = parseFloat(nilaiInput.value) || 0;
-        const persen  = parseFloat(persenInput.value) || 0;
-        const dibayar = parseFloat(dibayarInput.value) || 0;
-
-        const terhitung = Math.round(nilai * (persen / 100));
-        const sisa = terhitung - dibayar;
-
-        terhitungInput.value = terhitung;
-        sisaInput.value = sisa;
-    }
-
     document.addEventListener('DOMContentLoaded', function () {
-        ['nilai_penjualan', 'komisi_persen', 'dibayar'].forEach(function (id) {
-            const el = document.getElementById(id);
-            if (el) el.addEventListener('input', hitungKomisi);
-        });
-
         @if($errors->any())
             openTambahAgenModal();
         @endif

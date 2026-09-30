@@ -20,9 +20,38 @@
     </div>
     <p class="text-gray-500 mb-6">Kelola dan pantau informasi lengkap, riwayat pembayaran, serta status dokumen konsumen.</p>
 
+    @php
+        $rp = fn($n) => 'Rp' . number_format($n, 0, ',', '.');
+
+        // Luas tanah tanpa desimal berlebih: 98.00 -> 98 | 98.50 -> 98,5
+        $luasRaw   = $konsumen->kavling->luas ?? null;
+        $luasTampil = $luasRaw !== null && $luasRaw !== ''
+            ? rtrim(rtrim(number_format((float) $luasRaw, 2, ',', '.'), '0'), ',')
+            : '-';
+
+        $stages    = $summary['stages'];
+        $hargaNett = $summary['harga_jual_nett'];
+
+        $stageBar = [
+            'selesai' => 'bg-green-500',
+            'proses'  => 'bg-amber-400',
+            'belum'   => 'bg-gray-200',
+        ];
+        $stageBadge = [
+            'selesai' => 'bg-green-100 text-green-700',
+            'proses'  => 'bg-yellow-100 text-yellow-700',
+            'belum'   => 'bg-gray-100 text-gray-500',
+        ];
+        $stageLabel = ['selesai' => 'Selesai', 'proses' => 'Proses', 'belum' => 'Belum'];
+
+        // Status per komponen diambil dari perhitungan bertahap di controller
+        $stageByKey = collect($stages)->keyBy('key');
+        $statusKomponen = fn($key) => $stageByKey[$key]['status'] ?? 'belum';
+    @endphp
+
     {{-- Informasi Konsumen + Kavling --}}
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-        <div class="bg-white rounded-xl border p-6">
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
             <div class="flex items-center gap-3 mb-1">
                 <h2 class="text-lg font-bold text-gray-900">{{ $konsumen->nama_lengkap }}</h2>
                 <span class="bg-gray-100 text-gray-600 text-xs font-medium px-3 py-1 rounded-full">ID: {{ $konsumen->id_konsumen }}</span>
@@ -54,7 +83,7 @@
             </div>
         </div>
 
-        <div class="bg-white rounded-xl border p-6">
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
             <h2 class="text-lg font-bold text-gray-900 mb-4">Informasi Kavling</h2>
             <div class="grid grid-cols-3 gap-4 text-sm">
                 <div>
@@ -67,15 +96,15 @@
                 </div>
                 <div>
                     <p class="text-xs text-gray-400 uppercase mb-1">Skema Bayar</p>
-                    <p class="text-gray-800 font-semibold">{{ $konsumen->skema_bayar ?? '-' }}</p>
+                    <p class="text-gray-800 font-semibold">{{ ['cash_lunas' => 'Cash / Lunas', 'angsuran' => 'Angsuran'][$konsumen->skema_bayar] ?? '-' }}</p>
                 </div>
                 <div>
                     <p class="text-xs text-gray-400 uppercase mb-1">Luas Tanah</p>
-                    <p class="text-gray-800 font-semibold">{{ $konsumen->kavling->luas ?? '-' }} m&sup2;</p>
+                    <p class="text-gray-800 font-semibold">{{ $luasTampil }}@if($luasTampil !== '-') m&sup2;@endif</p>
                 </div>
                 <div>
                     <p class="text-xs text-gray-400 uppercase mb-1">Harga/m&sup2;</p>
-                    <p class="text-gray-800 font-semibold">Rp{{ number_format($konsumen->kavling->harga_per_m2 ?? 0, 0, ',', '.') }}</p>
+                    <p class="text-gray-800 font-semibold">{{ $rp($konsumen->kavling->harga_per_m2 ?? 0) }}</p>
                 </div>
                 <div>
                     <p class="text-xs text-gray-400 uppercase mb-1">Tanggal Transaksi</p>
@@ -87,40 +116,83 @@
 
     {{-- Ringkasan Harga --}}
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-        <div class="bg-white rounded-xl border p-5">
-            <p class="text-xs text-gray-500 uppercase font-medium">Harga Jual Nett</p>
-            <p class="text-2xl font-bold text-gray-900 mt-2">Rp{{ number_format($summary['harga_jual_nett'], 0, ',', '.') }}</p>
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm px-5 py-4 min-h-[96px] flex flex-col justify-between">
+            <p class="text-xs text-gray-500 uppercase font-semibold tracking-wide whitespace-nowrap">Harga Jual Nett</p>
+            <p class="text-2xl font-bold text-gray-900 leading-none mt-3">{{ $rp($summary['harga_jual_nett']) }}</p>
         </div>
-        <div class="bg-green-50 rounded-xl border border-green-100 p-5">
-            <p class="text-xs text-green-700 uppercase font-medium">Total Terbayar</p>
-            <p class="text-2xl font-bold text-green-700 mt-2">Rp{{ number_format($summary['total_terbayar'], 0, ',', '.') }}</p>
+        <div class="bg-green-50 rounded-xl border border-green-100 shadow-sm px-5 py-4 min-h-[96px] flex flex-col justify-between">
+            <p class="text-xs text-green-700 uppercase font-semibold tracking-wide whitespace-nowrap">Total Terbayar</p>
+            <p class="text-2xl font-bold text-green-700 leading-none mt-3">{{ $rp($summary['total_terbayar']) }}</p>
         </div>
-        <div class="bg-red-50 rounded-xl border border-red-100 p-5">
-            <p class="text-xs text-red-600 uppercase font-medium">Sisa Tagihan</p>
-            <p class="text-2xl font-bold text-red-600 mt-2">Rp{{ number_format($summary['sisa_tagihan'], 0, ',', '.') }}</p>
+        <div class="bg-red-50 rounded-xl border border-red-100 shadow-sm px-5 py-4 min-h-[96px] flex flex-col justify-between">
+            <p class="text-xs text-red-600 uppercase font-semibold tracking-wide whitespace-nowrap">Sisa Tagihan</p>
+            <p class="text-2xl font-bold text-red-600 leading-none mt-3">{{ $rp($summary['sisa_tagihan']) }}</p>
         </div>
     </div>
 
-    {{-- Progress Pembayaran --}}
-    <div class="bg-white rounded-xl border p-6 mb-6">
-        <div class="flex items-center justify-between mb-2">
+    {{-- Progress Pembayaran per Tahap --}}
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-6">
+        <div class="flex items-start justify-between gap-4">
             <div>
-                <p class="text-xs text-gray-500 uppercase font-medium">Progress Pembayaran</p>
-                <p class="text-xl font-bold text-gray-900 mt-1">
-                    Rp{{ number_format($summary['total_terbayar'], 0, ',', '.') }}
-                    <span class="text-sm font-normal text-gray-500">dari Rp{{ number_format($summary['target_dp_total'], 0, ',', '.') }} (Target DP)</span>
+                <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Progress Pembayaran</p>
+                <p class="mt-1 text-2xl font-bold text-gray-900">
+                    {{ $rp($summary['total_terbayar']) }}
+                    <span class="text-sm font-normal text-gray-500">dari {{ $rp($hargaNett) }} (Harga Jual Nett)</span>
                 </p>
             </div>
             <p class="text-2xl font-bold text-amber-500">{{ $summary['progress_percent'] }}%</p>
         </div>
-        <div class="w-full bg-gray-100 rounded-full h-2.5 overflow-hidden">
-            <div class="bg-amber-400 h-2.5 rounded-full" style="width: {{ min($summary['progress_percent'], 100) }}%"></div>
+
+        {{-- Bar bertahap: lebar tiap segmen sebanding dengan targetnya terhadap Harga Jual Nett --}}
+        <div class="flex gap-1 mt-4 h-3">
+            @foreach($stages as $s)
+                <div class="h-full rounded-full bg-gray-100 overflow-hidden"
+                     style="width: {{ $hargaNett > 0 ? ($s['target'] / $hargaNett) * 100 : 0 }}%; min-width: 6px;"
+                     title="{{ $s['nama'] }}: {{ $rp($s['terbayar']) }} / {{ $rp($s['target']) }}">
+                    <div class="h-full {{ $stageBar[$s['status']] }}" style="width: {{ $s['persen'] }}%"></div>
+                </div>
+            @endforeach
         </div>
+
+        {{-- Detail tiap tahap --}}
+        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mt-5">
+            @foreach($stages as $i => $s)
+                <div class="rounded-lg border px-4 py-3 {{ $s['aktif'] ? 'border-amber-300 bg-amber-50/40' : 'border-gray-200' }}">
+                    <div class="flex items-center justify-between gap-2">
+                        <p class="text-sm font-semibold text-gray-900">{{ $i + 1 }}. {{ $s['nama'] }}</p>
+                        <span class="px-2 py-0.5 rounded-full text-[11px] font-semibold {{ $stageBadge[$s['status']] }}">
+                            {{ $stageLabel[$s['status']] }}
+                        </span>
+                    </div>
+
+                    <p class="mt-2 text-lg font-bold text-gray-900">{{ $rp($s['terbayar']) }}</p>
+                    <p class="text-xs text-gray-500">dari target {{ $rp($s['target']) }}</p>
+
+                    <div class="mt-2 h-1.5 rounded-full bg-gray-100 overflow-hidden">
+                        <div class="h-full {{ $stageBar[$s['status']] }}" style="width: {{ $s['persen'] }}%"></div>
+                    </div>
+
+                    <p class="mt-2 text-xs {{ $s['aktif'] ? 'text-amber-600 font-medium' : 'text-gray-400' }}">
+                        @if($s['status'] === 'selesai')
+                            Lunas
+                        @elseif($s['aktif'])
+                            Tahap berjalan · sisa {{ $rp($s['sisa']) }}
+                        @else
+                            Menunggu tahap sebelumnya
+                        @endif
+                    </p>
+                </div>
+            @endforeach
+        </div>
+
+        <p class="mt-4 text-xs text-gray-400">
+            Total semua tahap = {{ $rp(collect($stages)->sum('target')) }} (sama dengan Harga Jual Nett).
+        </p>
     </div>
 
     {{-- Rincian Komponen + Riwayat Pembayaran --}}
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-        <div class="bg-white rounded-xl border">
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
             <div class="px-6 py-5 border-b">
                 <h2 class="text-lg font-bold text-gray-900">Rincian Komponen</h2>
             </div>
@@ -133,40 +205,44 @@
                     </tr>
                 </thead>
                 <tbody class="divide-y">
-                    @php
-                        $badgeDok = fn($v) => match($v) {
-                            'selesai' => 'bg-green-100 text-green-700',
-                            'proses'  => 'bg-yellow-100 text-yellow-700',
-                            default   => 'bg-gray-100 text-gray-500',
-                        };
-                    @endphp
                     <tr>
                         <td class="px-6 py-4 text-gray-700">Reservasi (NUP)</td>
-                        <td class="px-6 py-4 text-right">Rp{{ number_format($summary['target_reservasi'], 0, ',', '.') }}</td>
+                        <td class="px-6 py-4 text-right whitespace-nowrap">{{ $rp($summary['target_reservasi']) }}</td>
                         <td class="px-6 py-4 text-right">
-                            <span class="px-3 py-1 rounded-full text-xs font-medium {{ $badgeDok($konsumen->status_reservasi) }}">{{ ucfirst($konsumen->status_reservasi) }}</span>
+                            <span class="px-3 py-1 rounded-full text-xs font-medium {{ $stageBadge[$statusKomponen('reservasi')] }}">{{ $stageLabel[$statusKomponen('reservasi')] }}</span>
                         </td>
                     </tr>
                     <tr>
                         <td class="px-6 py-4 text-gray-700">Booking Fee</td>
-                        <td class="px-6 py-4 text-right">Rp{{ number_format($summary['target_booking'], 0, ',', '.') }}</td>
+                        <td class="px-6 py-4 text-right whitespace-nowrap">{{ $rp($summary['target_booking']) }}</td>
                         <td class="px-6 py-4 text-right">
-                            <span class="px-3 py-1 rounded-full text-xs font-medium {{ $badgeDok($konsumen->status_booking) }}">{{ ucfirst($konsumen->status_booking) }}</span>
+                            <span class="px-3 py-1 rounded-full text-xs font-medium {{ $stageBadge[$statusKomponen('booking')] }}">{{ $stageLabel[$statusKomponen('booking')] }}</span>
                         </td>
                     </tr>
                     <tr>
                         <td class="px-6 py-4 text-gray-700">Down Payment (DP)</td>
-                        <td class="px-6 py-4 text-right">Rp{{ number_format($summary['target_dp'], 0, ',', '.') }}</td>
+                        <td class="px-6 py-4 text-right whitespace-nowrap">{{ $rp($summary['target_dp']) }}</td>
                         <td class="px-6 py-4 text-right">
-                            <span class="px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-500">Belum</span>
+                            <span class="px-3 py-1 rounded-full text-xs font-medium {{ $stageBadge[$statusKomponen('dp')] }}">{{ $stageLabel[$statusKomponen('dp')] }}</span>
                         </td>
                     </tr>
-                    @if($konsumen->jumlah_angsuran)
+                    @if($stageByKey->has('pelunasan'))
                         <tr>
-                            <td class="px-6 py-4 text-gray-700">Angsuran ({{ $konsumen->jumlah_angsuran }}x)</td>
-                            <td class="px-6 py-4 text-right">Rp{{ number_format($summary['angsuran_per_bulan'], 0, ',', '.') }} / bln</td>
+                            <td class="px-6 py-4 text-gray-700">
+                                @if($konsumen->jumlah_angsuran)
+                                    Angsuran ({{ $konsumen->jumlah_angsuran }}x)
+                                @else
+                                    Pelunasan
+                                @endif
+                            </td>
+                            <td class="px-6 py-4 text-right whitespace-nowrap">
+                                {{ $rp($stageByKey['pelunasan']['target']) }}
+                                @if($konsumen->jumlah_angsuran)
+                                    <p class="text-xs text-gray-400">{{ $rp($summary['angsuran_per_bulan']) }} / bln</p>
+                                @endif
+                            </td>
                             <td class="px-6 py-4 text-right">
-                                <span class="px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-500">Belum</span>
+                                <span class="px-3 py-1 rounded-full text-xs font-medium {{ $stageBadge[$statusKomponen('pelunasan')] }}">{{ $stageLabel[$statusKomponen('pelunasan')] }}</span>
                             </td>
                         </tr>
                     @endif
@@ -174,7 +250,7 @@
             </table>
         </div>
 
-        <div class="bg-white rounded-xl border">
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
             <div class="px-6 py-5 border-b">
                 <h2 class="text-lg font-bold text-gray-900">Riwayat Pembayaran</h2>
             </div>
@@ -193,8 +269,8 @@
                             <td class="px-6 py-4 text-gray-700">{{ $riwayat->keterangan }}</td>
                             <td class="px-6 py-4 text-right">
                                 <div class="flex items-center justify-end gap-2">
-                                    <span class="font-medium">Rp{{ number_format($riwayat->nominal, 0, ',', '.') }}</span>
-                                    <a href="{{ route('konsumen.kwitansi', [$konsumen, $riwayat]) }}" title="Lihat Kwitansi" class="text-gray-400 hover:text-gray-700">
+                                    <span class="font-medium whitespace-nowrap">{{ $rp($riwayat->nominal) }}</span>
+                                    <a href="{{ route('konsumen.kwitansi', [$konsumen, $riwayat]) }}" title="Unduh Kwitansi (Word)" class="text-gray-400 hover:text-gray-700">
                                         <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
                                     </a>
                                 </div>
@@ -211,7 +287,7 @@
     </div>
 
     {{-- Status Dokumen Legal & Administrasi --}}
-    <div class="bg-white rounded-xl border p-6">
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
         <h2 class="text-lg font-bold text-gray-900">Status Dokumen Legal & Administrasi</h2>
         <p class="text-sm text-gray-500 mb-8">Pantau pergerakan berkas administrasi kavling.</p>
 
@@ -239,12 +315,12 @@
                 ],
             ];
 
-            $statusLabel = fn($s) => match($s) {
+            $docLabel = fn($s) => match($s) {
                 'selesai' => 'Selesai',
                 'proses'  => 'Menunggu Berkas',
                 default   => 'Terkunci',
             };
-            $statusBadge = fn($s) => match($s) {
+            $docBadge = fn($s) => match($s) {
                 'selesai' => 'bg-green-100 text-green-700',
                 'proses'  => 'bg-yellow-100 text-yellow-700',
                 default   => 'bg-gray-100 text-gray-500',
@@ -274,8 +350,8 @@
                     </div>
 
                     <p class="font-semibold text-gray-800 mt-3">{{ $step['label'] }}</p>
-                    <span class="px-3 py-1 rounded-full text-xs font-medium mt-2 {{ $statusBadge($step['status']) }}">
-                        {{ $statusLabel($step['status']) }}
+                    <span class="px-3 py-1 rounded-full text-xs font-medium mt-2 {{ $docBadge($step['status']) }}">
+                        {{ $docLabel($step['status']) }}
                     </span>
 
                     <p class="text-xs text-gray-400 mt-2">

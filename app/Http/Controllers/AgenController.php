@@ -43,13 +43,26 @@ class AgenController extends Controller
             'total_komisi_short'      => $this->formatSingkat($totalKomisi),
         ];
 
-        return view('agen.index', compact('agens', 'stats'));
+        // Kode agen berikutnya, buat ditampilkan di form Tambah (preview doang)
+        $nextKodeAgen = $this->generateKodeAgen();
+
+        return view('agen.index', compact('agens', 'stats', 'nextKodeAgen'));
+    }
+
+    /**
+     * Endpoint AJAX buat ambil kode agen berikutnya secara real-time,
+     * dipanggil tiap kali modal Tambah Agen dibuka biar gak pernah stale.
+     */
+    public function nextKode()
+    {
+        return response()->json([
+            'kode' => $this->generateKodeAgen(),
+        ]);
     }
 
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'kode_agen'        => 'required|string|unique:agens,kode_agen',
             'nama_agen'        => 'required|string|max:255',
             'no_hp'            => 'nullable|string|max:20',
             'lead'             => 'nullable|integer|min:0',
@@ -60,7 +73,9 @@ class AgenController extends Controller
             'dibayar'          => 'nullable|numeric|min:0',
         ]);
 
-        // Hitung ulang di server, jangan percaya nilai readonly dari client
+        // Kode agen di-generate di server, bukan dari input form
+        $kodeAgen = $this->generateKodeAgen();
+
         $nilai   = $validated['nilai_penjualan'] ?? 0;
         $persen  = $validated['komisi_persen'] ?? 0;
         $dibayar = $validated['dibayar'] ?? 0;
@@ -70,11 +85,12 @@ class AgenController extends Controller
 
         Agen::create([
             ...$validated,
+            'kode_agen'        => $kodeAgen,
             'komisi_terhitung' => $terhitung,
             'sisa_komisi'      => $sisa,
         ]);
 
-        return redirect()->route('agen.index')->with('success', 'Agen baru berhasil ditambahkan.');
+        return redirect()->route('agen.index')->with('success', "Agen baru ({$kodeAgen}) berhasil ditambahkan.");
     }
 
     public function show(Agen $agen)
@@ -90,7 +106,6 @@ class AgenController extends Controller
     public function update(Request $request, Agen $agen)
     {
         $validated = $request->validate([
-            'kode_agen'        => 'required|string|unique:agens,kode_agen,' . $agen->id,
             'nama_agen'        => 'required|string|max:255',
             'no_hp'            => 'nullable|string|max:20',
             'lead'             => 'nullable|integer|min:0',
@@ -100,6 +115,8 @@ class AgenController extends Controller
             'komisi_persen'    => 'nullable|numeric|min:0|max:100',
             'dibayar'          => 'nullable|numeric|min:0',
         ]);
+
+        // kode_agen TIDAK diubah lagi setelah dibuat pertama kali
 
         $nilai   = $validated['nilai_penjualan'] ?? 0;
         $persen  = $validated['komisi_persen'] ?? 0;
@@ -122,6 +139,28 @@ class AgenController extends Controller
         $agen->delete();
 
         return redirect()->route('agen.index')->with('success', 'Data agen berhasil dihapus.');
+    }
+
+    /**
+     * Generate kode agen berikutnya, format: AG-001, AG-002, dst.
+     */
+    private function generateKodeAgen()
+    {
+        // Ambil semua kode_agen yang ada, terus cari angka terbesarnya secara manual di PHP
+        // (biar gak bergantung sama sintaks SQL yang beda-beda tiap database)
+        $semuaKode = Agen::pluck('kode_agen');
+
+        $angkaTerbesar = 0;
+        foreach ($semuaKode as $kode) {
+            $angka = (int) substr($kode, 3); // ambil bagian setelah "AG-"
+            if ($angka > $angkaTerbesar) {
+                $angkaTerbesar = $angka;
+            }
+        }
+
+        $nextNumber = $angkaTerbesar + 1;
+
+        return 'AG-' . str_pad($nextNumber, 3, '0', STR_PAD_LEFT);
     }
 
     private function formatSingkat($angka)

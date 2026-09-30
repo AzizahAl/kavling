@@ -12,35 +12,32 @@ class SkemaHargaController extends Controller
     {
         $tahaps = SkemaHarga::orderBy('unit_mulai')->get();
 
-        // Jumlah kavling yang statusnya "terjual" menentukan tahap mana yang aktif
         $totalTerjual = Kavling::where('status', 'terjual')->count();
+        $tahapAktif   = SkemaHarga::aktif();
+        $hargaAktif   = $tahapAktif->harga_per_m2 ?? 0;
 
-        $hargaAktif = 0;
-
-        $tahaps = $tahaps->map(function ($tahap) use ($totalTerjual, &$hargaAktif) {
-            if ($totalTerjual > $tahap->unit_sampai) {
-                $tahap->status_label = 'Selesai';
-            } elseif ($totalTerjual >= $tahap->unit_mulai && $totalTerjual <= $tahap->unit_sampai) {
+        $tahaps = $tahaps->map(function ($tahap) use ($totalTerjual, $tahapAktif) {
+            if ($tahapAktif && $tahap->id === $tahapAktif->id) {
                 $tahap->status_label = 'Aktif';
-                $hargaAktif = $tahap->harga_per_m2;
-            } else {
+            } elseif ($tahap->unit_mulai > $totalTerjual) {
                 $tahap->status_label = 'Menunggu';
+            } else {
+                $tahap->status_label = 'Selesai';
             }
             return $tahap;
         });
 
         $stats = [
-            'total_tahap'      => $tahaps->count(),
-            'harga_awal'       => optional($tahaps->sortBy('unit_mulai')->first())->harga_per_m2 ?? 0,
-            'harga_tertinggi'  => $tahaps->max('harga_per_m2') ?? 0,
-            'total_kavling'    => optional($tahaps->sortByDesc('unit_sampai')->first())->unit_sampai ?? 0,
-            'harga_aktif'      => $hargaAktif,
+            'total_tahap'     => $tahaps->count(),
+            'harga_awal'      => optional($tahaps->sortBy('unit_mulai')->first())->harga_per_m2 ?? 0,
+            'harga_tertinggi' => $tahaps->max('harga_per_m2') ?? 0,
+            'total_kavling'   => optional($tahaps->sortByDesc('unit_sampai')->first())->unit_sampai ?? 0,
+            'harga_aktif'     => $hargaAktif,
         ];
 
-        // Saran default untuk form Tambah Tahap
-        $tahapTerakhir = $tahaps->sortByDesc('unit_sampai')->first();
+        $tahapTerakhir   = $tahaps->sortByDesc('unit_sampai')->first();
         $nextTahapNumber = $tahaps->count() + 1;
-        $nextUnitMulai   = $tahapTerakhir ? $tahapTerakhir->unit_sampai + 1 : 1;
+        $nextUnitMulai   = $tahapTerakhir ? $tahapTerakhir->unit_sampai + 1 : 0;
 
         return view('skema-harga.index', compact('tahaps', 'stats', 'nextTahapNumber', 'nextUnitMulai'));
     }
@@ -48,13 +45,12 @@ class SkemaHargaController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'nama_tahap'    => 'required|string|max:100',
-            'unit_mulai'    => 'required|integer|min:1',
-            'unit_sampai'   => 'required|integer|gte:unit_mulai',
-            'harga_per_m2'  => 'required|numeric|min:0',
+            'nama_tahap'   => 'required|string|max:100',
+            'unit_mulai'   => 'required|integer|min:0',
+            'unit_sampai'  => 'required|integer|gte:unit_mulai',
+            'harga_per_m2' => 'required|numeric|min:0',
         ]);
 
-        // Pastikan rentang unit tidak bertabrakan dengan tahap lain
         $bentrok = SkemaHarga::where(function ($q) use ($validated) {
             $q->whereBetween('unit_mulai', [$validated['unit_mulai'], $validated['unit_sampai']])
               ->orWhereBetween('unit_sampai', [$validated['unit_mulai'], $validated['unit_sampai']])
@@ -71,6 +67,7 @@ class SkemaHargaController extends Controller
         }
 
         SkemaHarga::create($validated);
+        Kavling::syncHargaTahap();
 
         return redirect()->route('skema-harga.index')->with('success', 'Tahap harga baru berhasil ditambahkan.');
     }
@@ -78,10 +75,10 @@ class SkemaHargaController extends Controller
     public function update(Request $request, SkemaHarga $skemaHarga)
     {
         $validated = $request->validate([
-            'nama_tahap'    => 'required|string|max:100',
-            'unit_mulai'    => 'required|integer|min:1',
-            'unit_sampai'   => 'required|integer|gte:unit_mulai',
-            'harga_per_m2'  => 'required|numeric|min:0',
+            'nama_tahap'   => 'required|string|max:100',
+            'unit_mulai'   => 'required|integer|min:0',
+            'unit_sampai'  => 'required|integer|gte:unit_mulai',
+            'harga_per_m2' => 'required|numeric|min:0',
         ]);
 
         $bentrok = SkemaHarga::where('id', '!=', $skemaHarga->id)
@@ -101,6 +98,7 @@ class SkemaHargaController extends Controller
         }
 
         $skemaHarga->update($validated);
+        Kavling::syncHargaTahap();
 
         return redirect()->route('skema-harga.index')->with('success', 'Tahap harga berhasil diperbarui.');
     }
@@ -108,6 +106,7 @@ class SkemaHargaController extends Controller
     public function destroy(SkemaHarga $skemaHarga)
     {
         $skemaHarga->delete();
+        Kavling::syncHargaTahap();
 
         return redirect()->route('skema-harga.index')->with('success', 'Tahap harga berhasil dihapus.');
     }

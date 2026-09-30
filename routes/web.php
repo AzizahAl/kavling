@@ -17,7 +17,11 @@ Route::get('/', function () {
 Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
 // Resource ini mencakup: index, create, store, show, edit, update, destroy
-Route::resource('master-kavling', KavlingController::class)->names('kavling');
+// ->parameters(...) WAJIB ada supaya route parameter-nya "kavling", cocok sama
+// nama variabel $kavling yang dipakai di semua method KavlingController.
+Route::resource('master-kavling', KavlingController::class)
+    ->names('kavling')
+    ->parameters(['master-kavling' => 'kavling']);
 
 // --- Data Master ---
 Route::view('/proyek', 'proyek.index')->name('proyek.index');
@@ -26,12 +30,15 @@ Route::post('/skema-harga', [SkemaHargaController::class, 'store'])->name('skema
 Route::put('/skema-harga/{skemaHarga}', [SkemaHargaController::class, 'update'])->name('skema-harga.update');
 Route::delete('/skema-harga/{skemaHarga}', [SkemaHargaController::class, 'destroy'])->name('skema-harga.destroy');
 
+Route::get('/agen/next-kode', [App\Http\Controllers\AgenController::class, 'nextKode'])->name('agen.next-kode');
+
 Route::get('/data-agen', [AgenController::class, 'index'])->name('agen.index');
 Route::post('/data-agen', [AgenController::class, 'store'])->name('agen.store');
 Route::get('/data-agen/{agen}', [AgenController::class, 'show'])->name('agen.show');
 Route::get('/data-agen/{agen}/edit', [AgenController::class, 'edit'])->name('agen.edit');
 Route::put('/data-agen/{agen}', [AgenController::class, 'update'])->name('agen.update');
 Route::delete('/data-agen/{agen}', [AgenController::class, 'destroy'])->name('agen.destroy');
+
 
 // --- Penjualan ---
 Route::prefix('transaksi-penjualan')->name('transaksi-penjualan.')->group(function () {
@@ -59,3 +66,5 @@ Route::post('/data-konsumen', [KonsumenController::class, 'store'])->name('konsu
 Route::get('/data-konsumen/{konsumen}', [KonsumenController::class, 'show'])->name('konsumen.show');
 Route::get('/data-konsumen/{konsumen}/kwitansi/{riwayat}', [KonsumenController::class, 'kwitansi'])->name('konsumen.kwitansi');
 Route::get('/data-konsumen/{konsumen}/buat-spk', [KonsumenController::class, 'buatSpk'])->name('konsumen.buat-spk');
+Route::get('konsumen/{konsumen}/kwitansi/{riwayat}/unduh', [KonsumenController::class, 'kwitansiUnduh'])
+    ->name('konsumen.kwitansi.unduh');

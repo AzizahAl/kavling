@@ -109,8 +109,8 @@
                     <tr class="border-b border-slate-100 hover:bg-slate-50">
                         <td class="px-4 py-3 font-medium text-slate-800">{{ $t->kode_transaksi }}</td>
                         <td class="px-4 py-3 text-slate-600">{{ $t->tanggal->format('d M Y') }}</td>
-                        <td class="px-4 py-3 text-slate-600">{{ $t->konsumen->kode_konsumen ?? '-' }}</td>
-                        <td class="px-4 py-3 text-slate-700">{{ $t->konsumen->nama ?? '-' }}</td>
+                        <td class="px-4 py-3 text-slate-600">{{ $t->konsumen->id_konsumen ?? '-' }}</td>
+                        <td class="px-4 py-3 text-slate-700">{{ $t->konsumen->nama_lengkap ?? '-' }}</td>
                         <td class="px-4 py-3 font-medium text-slate-800">{{ $t->kavling->kode_kavling ?? '-' }}</td>
                         <td class="px-4 py-3 text-slate-600">{{ $t->agen->nama_agen ?? '-' }}</td>
                         <td class="px-4 py-3">
