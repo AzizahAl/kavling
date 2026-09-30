@@ -18,7 +18,7 @@
     </div>
 @endforeach
 
-@if ($errors->any())
+@if ($errors->any() && empty($tanpaValidasi))
     <div x-data="{ show: true }" x-show="show" class="mb-5 flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
         <x-icon name="warning" class="mt-0.5 h-5 w-5"/>
         <div class="flex-1">

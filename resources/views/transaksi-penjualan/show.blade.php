@@ -11,7 +11,8 @@
         'pelunasan' => $t->sisa(),
     ];
     $jenisAwal = collect(['reservasi', 'booking', 'dp'])->first(fn ($j) => $saran[$j] > 0) ?? ($t->isAngsuran() ? 'angsuran' : 'pelunasan');
-    $bisaBayar = ! $t->isBatal() && $t->status !== 'lunas';
+    $admin = auth()->user()?->isAdmin();
+    $bisaBayar = $admin && ! $t->isBatal() && $t->status !== 'lunas';
     $formBayarAwal = old('_form') === 'bayar'
         ? ['id' => old('_id'), 'tanggal' => old('tanggal'), 'jenis' => old('jenis'), 'nominal' => old('nominal'), 'metode' => old('metode'), 'no_bukti' => old('no_bukti'), 'catatan' => old('catatan')]
         : ['id' => null, 'tanggal' => now()->toDateString(), 'jenis' => $jenisAwal, 'nominal' => $saran[$jenisAwal], 'metode' => 'transfer', 'no_bukti' => '', 'catatan' => ''];
@@ -30,14 +31,14 @@
 
 <x-page-header :title="'Transaksi ' . $t->kode_transaksi"
                :subtitle="$t->konsumen->nama_lengkap . ' · Kavling ' . $t->kavling->kode_kavling . ' · ' . tanggal($t->tanggal, 'j F Y')"
-               :back="route('transaksi-penjualan.index')"
-               :breadcrumbs="['Transaksi Penjualan' => route('transaksi-penjualan.index'), $t->kode_transaksi => null]">
+               :back="$admin ? route('transaksi-penjualan.index') : route('agen.show', $t->agen_id)"
+               :breadcrumbs="$admin ? ['Transaksi Penjualan' => route('transaksi-penjualan.index'), $t->kode_transaksi => null] : []">
     <x-slot:actions>
         <x-badge :status="$t->status" class="px-3 py-1 text-sm"/>
-        @unless ($t->isBatal())
+        @if ($admin && ! $t->isBatal())
             <a href="{{ route('transaksi-penjualan.edit', $t) }}" class="btn btn-secondary"><x-icon name="pencil" class="h-4 w-4"/> Ubah</a>
             <button type="button" class="btn btn-secondary text-red-600 hover:bg-red-50" x-on:click="$dispatch('open-modal', 'batal')"><x-icon name="ban" class="h-4 w-4"/> Batalkan</button>
-        @endunless
+        @endif
         @if ($bisaBayar)
             <button type="button" class="btn btn-primary" x-on:click="baru()"><x-icon name="plus" class="h-4 w-4"/> Catat Pembayaran</button>
         @endif
@@ -88,6 +89,7 @@
                                     <td class="text-xs text-slate-500">{{ $p->kas->kode ?? '—' }}</td>
                                     <td>
                                         <div class="flex justify-end gap-1">
+                                            @if ($admin)
                                             <a href="{{ route('pembayaran.kwitansi', $p) }}" class="btn-icon" title="Kwitansi"><x-icon name="receipt" class="h-[18px] w-[18px]"/></a>
                                             @unless ($t->isBatal())
                                                 <button type="button" class="btn-icon" title="Ubah"
@@ -95,6 +97,7 @@
                                                 <x-delete-button :action="route('pembayaran.destroy', [$t, $p])" title="Hapus pembayaran {{ $p->kode }}?"
                                                                  message="Catatan kas masuk untuk pembayaran ini juga akan dihapus, dan status transaksi dihitung ulang."/>
                                             @endunless
+                                            @endif
                                         </div>
                                     </td>
                                 </tr>
@@ -137,8 +140,8 @@
         <x-card title="Rincian Transaksi">
             <dl class="space-y-3 text-sm">
                 @foreach ([
-                    ['Konsumen', '<a href="' . route('konsumen.show', $t->konsumen) . '" class="text-forest-700 hover:underline">' . e($t->konsumen->nama_lengkap) . '</a><span class="block text-xs text-slate-500">' . e($t->konsumen->id_konsumen . ' · ' . $t->konsumen->no_hp) . '</span>'],
-                    ['Kavling', '<a href="' . route('kavling.show', $t->kavling) . '" class="text-forest-700 hover:underline">' . e($t->kavling->kode_kavling) . '</a> · ' . e($t->kavling->tipe) . ' · ' . angka($t->luas) . ' m²'],
+                    ['Konsumen', ($admin ? '<a href="' . route('konsumen.show', $t->konsumen) . '" class="text-forest-700 hover:underline">' . e($t->konsumen->nama_lengkap) . '</a>' : e($t->konsumen->nama_lengkap)) . '<span class="block text-xs text-slate-500">' . e($t->konsumen->id_konsumen . ' · ' . $t->konsumen->no_hp) . '</span>'],
+                    ['Kavling', ($admin ? '<a href="' . route('kavling.show', $t->kavling) . '" class="text-forest-700 hover:underline">' . e($t->kavling->kode_kavling) . '</a>' : e($t->kavling->kode_kavling)) . ' · ' . e($t->kavling->tipe) . ' · ' . angka($t->luas) . ' m²'],
                     ['Tahap Harga', e(($t->tahap->nama_tahap ?? '—') . ' · ' . rupiah($t->harga_per_m2) . '/m²')],
                     ['Agen', e($t->agen->nama_agen ?? '—')],
                     ['Metode', $t->isAngsuran() ? 'Angsuran ' . $t->tenor . ' bulan' : 'Cash'],
@@ -194,13 +197,13 @@
                 @endforeach
             </ul>
             <p class="mt-3 text-xs text-slate-500">Kavling berstatus Terjual setelah PPJB ditandai selesai (ditandatangani).</p>
-            @unless ($t->isBatal())
+            @if ($admin && ! $t->isBatal())
                 <div class="mt-4 grid grid-cols-2 gap-2">
                     <a href="{{ route('dokumen.lihat', [$t, 'spk']) }}" class="btn btn-sm btn-secondary"><x-icon name="document" class="h-4 w-4"/> SPK</a>
                     <a href="{{ route('dokumen.lihat', [$t, 'ppjb']) }}" class="btn btn-sm btn-secondary"><x-icon name="document" class="h-4 w-4"/> PPJB</a>
                     <a href="{{ route('legal.index') }}" class="btn btn-sm btn-ghost col-span-2">Ubah checklist legal</a>
                 </div>
-            @endunless
+            @endif
             @if ($t->lead)
                 <p class="mt-3 text-xs text-slate-500">Closing dari lead <a href="{{ route('lead.index', ['cari' => $t->lead->kode]) }}" class="font-medium text-forest-700 hover:underline">{{ $t->lead->kode }}</a>.</p>
             @endif
@@ -208,6 +211,7 @@
     </div>
 </div>
 
+@if ($admin)
 {{-- Modal catat / ubah pembayaran --}}
 <x-modal name="bayar" max-width="lg" :show="old('_form') === 'bayar' && $errors->any()">
     <form method="POST" :action="action">
@@ -309,6 +313,7 @@
             </div>
         </form>
     </x-modal>
+@endif
 @endif
 </div>
 @endsection

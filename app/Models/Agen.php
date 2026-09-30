@@ -19,6 +19,7 @@ class Agen extends Model
     public function leads(): HasMany { return $this->hasMany(Lead::class); }
     public function transaksis(): HasMany { return $this->hasMany(TransaksiPenjualan::class); }
     public function komisiPembayarans(): HasMany { return $this->hasMany(KomisiPembayaran::class)->latest('tanggal'); }
+    public function user(): \Illuminate\Database\Eloquent\Relations\HasOne { return $this->hasOne(User::class); }
 
     /** Persen komisi yang berlaku: milik agen, atau bawaan dari Pengaturan bila kosong. */
     public function persenKomisi(): ?float

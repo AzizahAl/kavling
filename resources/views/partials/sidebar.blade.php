@@ -1,7 +1,16 @@
 @php
-    // Daftar menu. 'aktif' = pola nama route yang membuat menu ter-highlight.
+    // Daftar menu per peran. Item: [label, route, ikon, pola route aktif, parameter route].
     // Menu yang route-nya belum ada otomatis disembunyikan.
-    $menu = [
+    $pengguna = auth()->user();
+    $menu = $pengguna?->isAgen() ? [
+        [null, [
+            ['Kinerja Saya', 'agen.show', 'home', 'agen.show', $pengguna->agen_id],
+        ]],
+        ['Marketing', [
+            ['Lead Harian', 'lead.index', 'funnel', 'lead.index'],
+            ['Rekap Lead', 'lead.rekap', 'chart', 'lead.rekap'],
+        ]],
+    ] : [
         [null, [
             ['Dashboard', 'dashboard', 'home', 'dashboard'],
         ]],
@@ -10,6 +19,7 @@
             ['Master Kavling', 'kavling.index', 'grid', 'kavling.*'],
             ['Skema Harga', 'skema-harga.index', 'tag', 'skema-harga.*'],
             ['Agen & Marketing', 'agen.index', 'users', 'agen.*'],
+            ['Pengguna', 'pengguna.index', 'lock', 'pengguna.*'],
         ]],
         ['Marketing', [
             ['Lead Harian', 'lead.index', 'funnel', 'lead.*'],
@@ -36,7 +46,7 @@
 <aside class="fixed inset-y-0 left-0 z-50 flex w-72 -translate-x-full flex-col bg-forest-900 text-white transition-transform duration-200 lg:sticky lg:top-0 lg:h-screen lg:w-64 lg:translate-x-0"
        :class="sidebar ? 'translate-x-0 shadow-2xl' : '-translate-x-full lg:translate-x-0'">
     <div class="flex items-center justify-between gap-3 border-b border-white/10 px-5 py-5">
-        <a href="{{ route('dashboard') }}" class="flex items-center gap-3">
+        <a href="{{ route('beranda') }}" class="flex items-center gap-3">
             <div class="flex h-9 w-9 items-center justify-center rounded-lg bg-gold-500 text-sm font-bold text-forest-900">TR</div>
             <div class="leading-tight">
                 <p class="font-semibold">{{ $namaProyek ?? 'Tectona Residen' }}</p>
@@ -55,9 +65,10 @@
             @if ($grup)
                 <p class="px-5 pt-5 pb-1.5 text-[11px] font-semibold tracking-wider text-forest-400 uppercase">{{ $grup }}</p>
             @endif
-            @foreach ($items as [$label, $route, $icon, $pola])
+            @foreach ($items as $item)
+                @php [$label, $route, $icon, $pola] = $item; $param = $item[4] ?? null; @endphp
                 @php $aktif = request()->routeIs($pola); @endphp
-                <a href="{{ route($route) }}" @class([
+                <a href="{{ route($route, $param) }}" @class([
                     'mx-3 flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors',
                     'bg-white/10 font-medium text-white shadow-[inset_3px_0_0_var(--color-gold-500)]' => $aktif,
                     'text-forest-100/80 hover:bg-white/5 hover:text-white' => ! $aktif,

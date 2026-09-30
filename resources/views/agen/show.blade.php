@@ -2,14 +2,17 @@
 @section('title', $agen->nama_agen)
 
 @section('content')
+@php $admin = auth()->user()?->isAdmin(); @endphp
 <div x-data="{ a: @js(['id' => $agen->id, 'nama_agen' => old('nama_agen', $agen->nama_agen), 'no_hp' => $agen->no_hp, 'email' => $agen->email, 'komisi_persen' => $agen->komisi_persen, 'aktif' => $agen->aktif, 'catatan' => $agen->catatan]), aksiAgen: '{{ route('agen.update', $agen) }}' }">
 
 <x-page-header :title="$agen->nama_agen" :subtitle="$agen->kode_agen . ($agen->no_hp ? ' · ' . $agen->no_hp : '') . ($agen->aktif ? '' : ' · Nonaktif')"
-               :back="route('agen.index')" :breadcrumbs="['Agen & Marketing' => route('agen.index'), $agen->kode_agen => null]">
+               :back="$admin ? route('agen.index') : null" :breadcrumbs="$admin ? ['Agen & Marketing' => route('agen.index'), $agen->kode_agen => null] : []">
+    @if ($admin)
     <x-slot:actions>
         <button type="button" class="btn btn-secondary" x-on:click="$dispatch('open-modal', 'agen')"><x-icon name="pencil" class="h-4 w-4"/> Ubah</button>
         <button type="button" class="btn btn-primary" x-on:click="$dispatch('open-modal', 'bayar-komisi')" @disabled(($angka['sisa'] ?? 0) <= 0)><x-icon name="banknotes" class="h-4 w-4"/> Bayar Komisi</button>
     </x-slot:actions>
+    @endif
 </x-page-header>
 
 <div class="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4 sm:gap-4">
@@ -63,7 +66,7 @@
                                     <td>{{ \App\Models\Pembayaran::METODE[$p->metode] }}</td>
                                     <td class="text-right font-medium tabular-nums">{{ rupiah($p->nominal) }}</td>
                                     <td class="text-xs text-slate-500">{{ $p->kas->kode ?? '—' }}</td>
-                                    <td class="text-right"><x-delete-button :action="route('agen.komisi.destroy', [$agen, $p])" title="Hapus pembayaran komisi?" message="Catatan kas keluarnya juga akan dihapus."/></td>
+                                    <td class="text-right">@if ($admin)<x-delete-button :action="route('agen.komisi.destroy', [$agen, $p])" title="Hapus pembayaran komisi?" message="Catatan kas keluarnya juga akan dihapus."/>@endif</td>
                                 </tr>
                             @endforeach
                         </tbody>
@@ -90,6 +93,7 @@
     </x-card>
 </div>
 
+@if ($admin)
 @include('agen._modal')
 
 <x-modal name="bayar-komisi" title="Bayar Komisi {{ $agen->nama_agen }}" max-width="md" :show="$errors->has('nominal') || $errors->has('tanggal')">
@@ -113,5 +117,6 @@
         </div>
     </form>
 </x-modal>
+@endif
 </div>
 @endsection

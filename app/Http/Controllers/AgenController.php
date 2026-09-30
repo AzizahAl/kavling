@@ -57,6 +57,7 @@ class AgenController extends Controller
 
     public function show(Agen $agen)
     {
+        $this->pastikanMilik($agen->id);
         $rincian = $this->komisi->rincian($agen);
         $t = $this->lead->totalPerAgen()[$agen->id] ?? null;
 

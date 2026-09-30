@@ -112,6 +112,7 @@ class TransaksiPenjualanController extends Controller
 
     public function show(TransaksiPenjualan $transaksi, AngsuranService $angsuran)
     {
+        $this->pastikanMilik($transaksi->agen_id);
         $transaksi->load(['konsumen', 'kavling', 'agen', 'tahap', 'checklist', 'pembuat', 'kasRefunds',
             'pembayarans' => fn ($q) => $q->with('kas')]);
 

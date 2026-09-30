@@ -17,7 +17,9 @@ class LeadController extends Controller
 
     public function index(Request $request)
     {
+        $milik = $this->agenLogin();
         $leads = Lead::with(['agen', 'penginput', 'transaksi.kavling', 'kavlingMinat'])
+            ->when($milik, fn ($q) => $q->where('agen_id', $milik))
             ->when($request->filled('cari'), fn ($q) => $q->where(fn ($w) => $w
                 ->where('nama', 'like', "%{$request->cari}%")->orWhere('no_hp', 'like', "%{$request->cari}%")->orWhere('kode', 'like', "%{$request->cari}%")))
             ->when($request->filled('tahap'), fn ($q) => $q->where('tahap', $request->tahap))
@@ -28,14 +30,14 @@ class LeadController extends Controller
             ->latest('tanggal_lead')->latest('id')
             ->paginate(20)->withQueryString();
 
-        $hariIni = $this->svc->rekapPerAgen(today(), today());
-        $bulanIni = $this->svc->rekapPerAgen(now()->startOfMonth(), now()->endOfMonth());
+        $hariIni = $this->svc->rekapPerAgen(today(), today(), $milik);
+        $bulanIni = $this->svc->rekapPerAgen(now()->startOfMonth(), now()->endOfMonth(), $milik);
 
         return view('lead.index', [
             'leads'    => $leads,
             'hariIni'  => ['lead' => $hariIni->sum('lead'), 'prospek' => $hariIni->sum('prospek'), 'closing' => $hariIni->sum('closing')],
             'bulanIni' => ['lead' => $bulanIni->sum('lead'), 'prospek' => $bulanIni->sum('prospek'), 'closing' => $bulanIni->sum('closing')],
-            'perTahap' => Lead::selectRaw('tahap, COUNT(*) n')->groupBy('tahap')->pluck('n', 'tahap'),
+            'perTahap' => Lead::when($milik, fn ($q) => $q->where('agen_id', $milik))->selectRaw('tahap, COUNT(*) n')->groupBy('tahap')->pluck('n', 'tahap'),
         ] + $this->pilihan());
     }
 
@@ -52,7 +54,8 @@ class LeadController extends Controller
         $geser = ['harian' => 'addDay', 'mingguan' => 'addWeek', 'bulanan' => 'addMonthNoOverflow'][$mode];
         $mundur = ['harian' => 'subDay', 'mingguan' => 'subWeek', 'bulanan' => 'subMonthNoOverflow'][$mode];
 
-        $rekap = $this->svc->rekapPerAgen($dari, $sampai, $request->integer('agen') ?: null);
+        $agenId = $this->agenLogin() ?? ($request->integer('agen') ?: null);
+        $rekap = $this->svc->rekapPerAgen($dari, $sampai, $agenId);
 
         return view('lead.rekap', [
             'mode'     => $mode,
@@ -61,8 +64,8 @@ class LeadController extends Controller
             'sebelum'  => $acuan->copy()->{$mundur}()->toDateString(),
             'sesudah'  => $acuan->copy()->{$geser}()->toDateString(),
             'rekap'    => $rekap,
-            'deret'    => $mode === 'harian' ? [] : $this->svc->deretHarian($dari, $sampai, $request->integer('agen') ?: null),
-            'agens'    => Agen::orderBy('nama_agen')->pluck('nama_agen', 'id'),
+            'deret'    => $mode === 'harian' ? [] : $this->svc->deretHarian($dari, $sampai, $agenId),
+            'agens'    => Agen::when($this->agenLogin(), fn ($q, $id) => $q->whereKey($id))->orderBy('nama_agen')->pluck('nama_agen', 'id'),
         ]);
     }
 
@@ -75,6 +78,7 @@ class LeadController extends Controller
 
     public function update(Request $request, Lead $lead)
     {
+        $this->pastikanMilik($lead->agen_id);
         $this->svc->ubah($lead, $this->validasi($request));
 
         return back()->with('success', "Data lead {$lead->kode} diperbarui.");
@@ -82,6 +86,7 @@ class LeadController extends Controller
 
     public function destroy(Lead $lead)
     {
+        $this->pastikanMilik($lead->agen_id);
         if ($lead->tahap === 'closing') {
             return back()->with('error', 'Lead yang sudah closing tidak bisa dihapus. Kembalikan dulu ke prospek bila salah input.');
         }
@@ -92,6 +97,7 @@ class LeadController extends Controller
 
     public function prospek(Request $request, Lead $lead)
     {
+        $this->pastikanMilik($lead->agen_id);
         $d = $request->validate(['tanggal' => ['required', 'date', 'before_or_equal:today'], 'catatan' => ['nullable', 'string', 'max:500']]);
         $this->svc->keProspek($lead, $d['tanggal'], $d['catatan'] ?? null, auth()->id());
 
@@ -100,11 +106,15 @@ class LeadController extends Controller
 
     public function closing(Request $request, Lead $lead)
     {
+        $this->pastikanMilik($lead->agen_id);
         $d = $request->validate([
             'tanggal'      => ['required', 'date', 'before_or_equal:today'],
             'transaksi_id' => ['required', Rule::exists('transaksi_penjualans', 'id')],
             'catatan'      => ['nullable', 'string', 'max:500'],
         ], ['transaksi_id.required' => 'Pilih transaksi penjualan yang menjadi closing lead ini.']);
+        if ($milik = $this->agenLogin()) {
+            abort_unless(TransaksiPenjualan::whereKey($d['transaksi_id'])->where('agen_id', $milik)->exists(), 403, 'Transaksi ini bukan milik Anda.');
+        }
         $this->svc->keClosing($lead, (int) $d['transaksi_id'], $d['tanggal'], $d['catatan'] ?? null, auth()->id());
 
         return back()->with('success', "{$lead->nama} tercatat Closing.");
@@ -112,6 +122,7 @@ class LeadController extends Controller
 
     public function mundur(Lead $lead)
     {
+        $this->pastikanMilik($lead->agen_id);
         $this->svc->mundur($lead, auth()->id());
 
         return back()->with('success', "Tahap {$lead->kode} dikembalikan satu langkah.");
@@ -119,6 +130,11 @@ class LeadController extends Controller
 
     private function validasi(Request $request): array
     {
+        // Agen selalu menjadi penanggung jawab lead yang diinputnya sendiri
+        if ($milik = $this->agenLogin()) {
+            $request->merge(['agen_id' => $milik]);
+        }
+
         return $request->validate([
             'nama'             => ['required', 'string', 'max:255'],
             'no_hp'            => ['nullable', 'string', 'max:20'],
@@ -134,10 +150,11 @@ class LeadController extends Controller
     private function pilihan(): array
     {
         return [
-            'agens'    => Agen::where('aktif', true)->orderBy('nama_agen')->pluck('nama_agen', 'id'),
+            'agens'    => Agen::where('aktif', true)->when($this->agenLogin(), fn ($q, $id) => $q->whereKey($id))->orderBy('nama_agen')->pluck('nama_agen', 'id'),
             'kavlings' => Kavling::orderBy('kode_kavling')->pluck('kode_kavling', 'id'),
             // Transaksi aktif yang belum menjadi closing lead mana pun
-            'transaksiBebas' => TransaksiPenjualan::aktif()->whereDoesntHave('lead')->with(['konsumen', 'kavling'])->latest('tanggal')->get()
+            'transaksiBebas' => TransaksiPenjualan::aktif()->whereDoesntHave('lead')
+                ->when($this->agenLogin(), fn ($q, $id) => $q->where('agen_id', $id))->with(['konsumen', 'kavling'])->latest('tanggal')->get()
                 ->map(fn ($t) => ['id' => $t->id, 'agen_id' => $t->agen_id, 'label' => "{$t->kode_transaksi} · {$t->kavling->kode_kavling} · {$t->konsumen->nama_lengkap}"]),
         ];
     }
