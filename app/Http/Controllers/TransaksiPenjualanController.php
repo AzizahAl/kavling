@@ -32,17 +32,23 @@ class TransaksiPenjualanController extends Controller
             ->when($request->filled('agen'), fn ($q) => $q->where('agen_id', $request->agen))
             ->when($request->filled('bulan'), fn ($q) => $q->whereYear('tanggal', substr($request->bulan, 0, 4))->whereMonth('tanggal', substr($request->bulan, 5, 2)));
 
+        // Daftar utama = transaksi yang sudah menghasilkan penerimaan (+ batal). "Menunggu Pembayaran" tampil terpisah,
+        // kecuali tab Menunggu dipilih.
         $transaksis = $filter(TransaksiPenjualan::with(['konsumen', 'kavling', 'agen'])->denganRingkasan())
+            ->when($request->status !== 'menunggu', fn ($q) => $q->where('status', '!=', 'menunggu'))
             ->latest('tanggal')->latest('id')
             ->paginate(15)->withQueryString();
 
-        $aktif = TransaksiPenjualan::aktif();
+        $menunggu = $request->filled('status') ? collect() : TransaksiPenjualan::menunggu()->with(['konsumen', 'kavling', 'agen'])->orderBy('batas_tahan')->get();
+
+        // Angka penjualan hanya dari transaksi yang sudah menerima uang (bukan menunggu, bukan batal)
+        $berjalan = TransaksiPenjualan::berjalan();
         $totalPokok = (float) DB::table('pembayarans')->join('transaksi_penjualans as t', 't.id', '=', 'pembayarans.transaksi_id')
-            ->where('t.status', '!=', 'batal')->whereIn('pembayarans.jenis', TransaksiPenjualan::JENIS_POKOK)->sum('pembayarans.nominal');
-        $totalNilai = (float) (clone $aktif)->sum('nilai_jual');
+            ->whereNotIn('t.status', ['batal', 'menunggu'])->whereIn('pembayarans.jenis', TransaksiPenjualan::JENIS_POKOK)->sum('pembayarans.nominal');
+        $totalNilai = (float) (clone $berjalan)->sum('nilai_jual');
 
         $stats = [
-            'aktif'       => (clone $aktif)->count(),
+            'aktif'       => (clone $berjalan)->count(),
             'per_status'  => TransaksiPenjualan::selectRaw('status, COUNT(*) n')->groupBy('status')->pluck('n', 'status'),
             'nilai_jual'  => $totalNilai,
             'terbayar'    => $totalPokok,
@@ -51,6 +57,7 @@ class TransaksiPenjualanController extends Controller
 
         return view('transaksi-penjualan.index', [
             'transaksis' => $transaksis,
+            'menunggu'   => $menunggu,
             'stats'      => $stats,
             'agens'      => Agen::orderBy('nama_agen')->pluck('nama_agen', 'id'),
         ]);
@@ -113,14 +120,15 @@ class TransaksiPenjualanController extends Controller
     public function show(TransaksiPenjualan $transaksi, AngsuranService $angsuran)
     {
         $this->pastikanMilik($transaksi->agen_id);
-        $transaksi->load(['konsumen', 'kavling', 'agen', 'tahap', 'checklist', 'pembuat', 'kasRefunds',
-            'pembayarans' => fn ($q) => $q->with('kas')]);
+        $transaksi->load(['konsumen', 'kavling', 'agen', 'tahap', 'checklist', 'pembuat', 'kasRefunds', 'pembatalan.pembuat', 'pembatalan.kas',
+            'riwayats.user', 'pembayarans' => fn ($q) => $q->with('kas')]);
 
         return view('transaksi-penjualan.show', [
             't'        => $transaksi,
             'angsuran' => $angsuran->ringkasan($transaksi),
             'cicilan'  => $angsuran->cicilanPerBulan($transaksi),
-            'refund'   => $transaksi->isBatal() ? null : $this->svc->rincianRefund($transaksi),
+            'refund'   => $transaksi->isBatal() ? null : $this->svc->rincianPembatalan($transaksi),
+            'potonganBooking' => (float) Pengaturan::get('potongan_booking', 0),
         ]);
     }
 
@@ -147,13 +155,22 @@ class TransaksiPenjualanController extends Controller
     public function batal(Request $request, TransaksiPenjualan $transaksi)
     {
         $data = $request->validate([
-            'tanggal_batal' => ['required', 'date', 'after_or_equal:' . $transaksi->tanggal->toDateString()],
-            'alasan'        => ['required', 'string', 'max:1000'],
+            'tanggal_batal'   => ['required', 'date', 'after_or_equal:' . $transaksi->tanggal->toDateString(), 'before_or_equal:today'],
+            'alasan'          => ['required', 'string', 'max:1000'],
+            'pokok_potongan'  => ['nullable', 'numeric', 'min:0'],
+            'dasar_ketentuan' => ['nullable', 'string', 'max:1000'],
+        ], [], ['pokok_potongan' => 'potongan DP & angsuran', 'dasar_ketentuan' => 'dasar ketentuan']);
+
+        $t = $this->svc->batal($transaksi, [
+            'tanggal'         => $data['tanggal_batal'],
+            'alasan'          => $data['alasan'],
+            'pokok_potongan'  => (float) ($data['pokok_potongan'] ?? 0),
+            'dasar_ketentuan' => $data['dasar_ketentuan'] ?? null,
         ]);
-        $this->svc->batal($transaksi, $data['tanggal_batal'], $data['alasan']);
+        $total = (float) $t->pembatalan()->value('total_refund');
 
         return redirect()->route('transaksi-penjualan.show', $transaksi)
-            ->with('success', "Transaksi {$transaksi->kode_transaksi} dibatalkan. Kavling kembali tersedia dan refund tercatat di kas.");
+            ->with('success', "Transaksi {$transaksi->kode_transaksi} dibatalkan. Kavling tersedia lagi" . ($total > 0 ? '; pengembalian ' . rupiah($total) . ' tercatat sebagai kas keluar.' : '.'));
     }
 
     // ------------------------------------------------------------------

@@ -51,7 +51,8 @@ class KasService
         return $kas;
     }
 
-    public function catatRefund(TransaksiPenjualan $t, float $nominal, $tanggal, string $rincian): KasTransaksi
+    /** $alokasikan = false: alokasi pengembalian diatur per jenis uang oleh AlokasiService::alokasikanPembatalan. */
+    public function catatRefund(TransaksiPenjualan $t, float $nominal, $tanggal, string $rincian, bool $alokasikan = true): KasTransaksi
     {
         $kas = KasTransaksi::create([
             'tanggal'      => $tanggal,
@@ -65,7 +66,9 @@ class KasService
             'sumber'       => $t->kode_transaksi,
             'catatan'      => $rincian,
         ]);
-        $this->alokasi->alokasikan($kas);
+        if ($alokasikan) {
+            $this->alokasi->alokasikan($kas);
+        }
 
         return $kas;
     }

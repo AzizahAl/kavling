@@ -36,12 +36,18 @@
                :back="$admin ? route('transaksi-penjualan.index') : route('agen.show', $t->agen_id)"
                :breadcrumbs="$admin ? ['Transaksi' => route('transaksi-penjualan.index'), $t->kode_transaksi => null] : []">
     <x-slot:actions>
-        <x-badge :status="$t->status" class="!h-7 !grow-0 px-3 text-[13px]"/>
+        <x-status-bayar :t="$t" class="!h-7 !grow-0 px-3 text-[13px]"/>
         @if ($admin && ! $t->isBatal())
             <x-menu align="right" width="w-52">
                 <x-slot:trigger><x-button variant="secondary" icon="more" aria-haspopup="menu">Lainnya</x-button></x-slot:trigger>
                 <x-menu-item :href="route('transaksi-penjualan.edit', $t)" icon="pencil">Ubah transaksi</x-menu-item>
-                <x-menu-item :href="route('dokumen.lihat', [$t, 'spk'])" icon="document">SPK</x-menu-item>
+                @if ($alasanSpk = $t->alasanSpkBelumBisa())
+                    <div class="flex items-start gap-2 px-3 py-2 text-sm text-slate-400" title="{{ $alasanSpk }}">
+                        <x-icon name="document" class="mt-0.5 size-4"/><span>SPK<span class="block text-xs">{{ $alasanSpk }}</span></span>
+                    </div>
+                @else
+                    <x-menu-item :href="route('dokumen.lihat', [$t, 'spk'])" icon="document">SPK</x-menu-item>
+                @endif
                 <x-menu-item :href="route('dokumen.lihat', [$t, 'ppjb'])" icon="document">PPJB</x-menu-item>
                 <div class="my-1 border-t border-slate-100"></div>
                 <x-menu-item icon="ban" danger x-on:click="$dispatch('open-modal', 'batal')">Batalkan transaksi</x-menu-item>
@@ -54,16 +60,47 @@
 </x-page-header>
 
 @if ($t->isBatal())
+    @php $pb = $t->pembatalan; @endphp
     <div class="mb-5 flex gap-3 rounded-kartu border border-red-200 bg-red-50 p-4 text-sm text-red-800">
         <x-icon name="x-circle" class="size-5 text-red-500"/>
-        <div class="min-w-0 space-y-1">
-            <p class="font-semibold">Dibatalkan {{ tanggal($t->tanggal_batal, 'j F Y') }}</p>
+        <div class="min-w-0 flex-1 space-y-2">
+            <p class="font-semibold">Dibatalkan {{ tanggal($t->tanggal_batal, 'j F Y') }}@if ($pb?->kedaluwarsa) · otomatis karena batas tahan kavling habis @endif</p>
             <p>Alasan: {{ $t->alasan_batal }}</p>
-            @forelse ($t->kasRefunds as $r)
-                <p>Refund {{ rupiah($r->nominal) }} ({{ $r->kode }}). {{ $r->catatan }}</p>
-            @empty
-                <p>Tidak ada refund.</p>
-            @endforelse
+            @if ($pb)
+                <div class="table-wrap rounded-kontrol border border-red-200 bg-white text-slate-700">
+                    <table class="table">
+                        <thead><tr><th>Jenis uang</th><th class="text-right">Dibayar</th><th class="text-right">Potongan</th><th class="text-right">Dikembalikan</th></tr></thead>
+                        <tbody>
+                            <tr><td>Reservasi</td><td class="text-right tabular-nums">{{ rupiah($pb->reservasi_dibayar) }}</td><td class="text-right tabular-nums">—</td><td class="text-right tabular-nums">{{ rupiah($pb->reservasi_refund) }}</td></tr>
+                            <tr><td>Booking fee<span class="block text-xs text-slate-500">Potongan masuk pos marketing</span></td><td class="text-right tabular-nums">{{ rupiah($pb->booking_dibayar) }}</td><td class="text-right tabular-nums">{{ rupiah($pb->booking_potongan) }}</td><td class="text-right tabular-nums">{{ rupiah($pb->booking_refund) }}</td></tr>
+                            <tr><td>DP & angsuran</td><td class="text-right tabular-nums">{{ rupiah($pb->pokok_dibayar) }}</td><td class="text-right tabular-nums">{{ rupiah($pb->pokok_potongan) }}</td><td class="text-right tabular-nums">{{ rupiah($pb->pokok_refund) }}</td></tr>
+                        </tbody>
+                        <tfoot><tr><td colspan="3">Total dikembalikan</td><td class="text-right tabular-nums">{{ rupiah($pb->total_refund) }}</td></tr></tfoot>
+                    </table>
+                </div>
+                @if ($pb->dasar_ketentuan)<p>Dasar ketentuan: {{ $pb->dasar_ketentuan }}</p>@endif
+                <p class="text-xs text-red-700/80">
+                    @if ($pb->kas)Kas keluar {{ $pb->kas->kode }} · @endif
+                    Dicatat {{ $pb->pembuat->name ?? 'sistem' }}
+                </p>
+            @else
+                @forelse ($t->kasRefunds as $r)
+                    <p>Refund {{ rupiah($r->nominal) }} ({{ $r->kode }}). {{ $r->catatan }}</p>
+                @empty
+                    <p>Tidak ada refund.</p>
+                @endforelse
+            @endif
+        </div>
+    </div>
+@endif
+
+@if ($t->isMenunggu() && $t->batas_tahan)
+    <div class="mb-5 flex gap-3 rounded-kartu border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"
+         x-data="hitungMundur(@js($t->batas_tahan->toIso8601String()))">
+        <x-icon name="clock" class="size-5 text-amber-500"/>
+        <div class="min-w-0 space-y-1">
+            <p class="font-semibold">Menunggu pembayaran reservasi · kavling ditahan sampai {{ $t->batas_tahan->translatedFormat('j M Y H:i') }}</p>
+            <p>Sisa waktu <span class="font-semibold tabular-nums" x-text="teks">…</span>. Belum dihitung sebagai penjualan, pendapatan, komisi, atau tahap harga. Bila waktu habis tanpa pembayaran, transaksi batal otomatis dan kavling kembali tersedia.</p>
         </div>
     </div>
 @endif
@@ -144,6 +181,13 @@
     </div>
 
     <div class="min-w-0 space-y-5">
+        <x-card title="Status">
+            <dl class="space-y-3 text-sm">
+                <div class="flex items-center justify-between gap-2"><dt class="text-slate-500">Pembayaran</dt><dd><x-status-bayar :t="$t"/></dd></div>
+                <div class="flex items-center justify-between gap-2"><dt class="text-slate-500">Kavling {{ $t->kavling->kode_kavling }}</dt><dd><x-badge :status="$t->kavling->status" :label="$t->kavling->label_status"/></dd></div>
+            </dl>
+            <p class="mt-3 text-xs text-slate-500">Laporan keuangan membaca status pembayaran; laporan penjualan & legal membaca status kavling dan dokumen.</p>
+        </x-card>
         <x-card title="Rincian">
             <dl class="space-y-3 text-sm">
                 @foreach ([
@@ -206,9 +250,34 @@
                     </li>
                 @endforeach
             </ul>
-            <p class="mt-3 text-xs text-slate-500">PPJB selesai = kavling Terjual.</p>
+            <p class="mt-3 text-xs text-slate-500">{{ \App\Services\Pengaturan::get('terjual_saat', 'ppjb') === 'lunas' ? 'Lunas = kavling Terjual.' : 'PPJB selesai = kavling Terjual.' }}@if ($t->alasanSpkBelumBisa()) {{ $t->alasanSpkBelumBisa() }}@endif</p>
             @if ($t->lead)
                 <p class="mt-2 text-xs text-slate-500">Closing dari lead <a href="{{ route('lead.index', ['cari' => $t->lead->kode]) }}" class="tautan">{{ $t->lead->kode }}</a></p>
+            @endif
+        </x-card>
+
+        <x-card title="Riwayat Status" subtitle="Tercatat otomatis, tidak bisa diubah.">
+            @if ($t->riwayats->isEmpty())
+                <p class="text-sm text-slate-500">Belum ada riwayat.</p>
+            @else
+                <ol class="relative space-y-4 border-l border-slate-200 pl-4">
+                    @foreach ($t->riwayats as $r)
+                        <li class="relative">
+                            <span @class(['absolute -left-[21px] top-1 size-2.5 rounded-full ring-4 ring-white',
+                                'bg-brand-500' => $r->jenis === 'pembayaran', 'bg-sky-500' => $r->jenis === 'dokumen',
+                                'bg-amber-500' => $r->jenis === 'kavling', 'bg-red-500' => $r->jenis === 'pembatalan'])></span>
+                            <p class="text-sm font-medium text-slate-800">{{ $r->judul }}</p>
+                            @if ($r->ke !== null)
+                            <p class="text-sm text-slate-600">
+                                @if ($r->dari !== null)<span class="text-slate-400">{{ \App\Models\StatusRiwayat::labelStatus($r->jenis, $r->dari) }}</span> → @endif
+                                {{ \App\Models\StatusRiwayat::labelStatus($r->jenis, $r->ke) }}
+                            </p>
+                            @endif
+                            @if ($r->catatan)<p class="text-xs text-slate-500">{{ $r->catatan }}</p>@endif
+                            <p class="mt-0.5 text-xs text-slate-400">{{ $r->waktu->translatedFormat('j M Y H:i') }} · {{ $r->user->name ?? 'Sistem' }}</p>
+                        </li>
+                    @endforeach
+                </ol>
             @endif
         </x-card>
     </div>
@@ -250,46 +319,74 @@
 
     {{-- Popup pembatalan --}}
     @if ($refund)
-        <x-modal name="batal" title="Batalkan Transaksi" :subtitle="$t->kode_transaksi . ' · ' . $t->konsumen->nama_lengkap" :show="$errors->has('alasan') || $errors->has('tanggal_batal')">
+        <x-modal name="batal" title="Batalkan Transaksi" :subtitle="$t->kode_transaksi . ' · ' . $t->konsumen->nama_lengkap" max-width="xl"
+                 :show="$errors->hasAny(['alasan', 'tanggal_batal', 'pokok_potongan', 'dasar_ketentuan'])">
             <form method="POST" action="{{ route('transaksi-penjualan.batal', $t) }}" class="flex min-h-0 flex-1 flex-col"
-                  data-confirm="Kavling kembali tersedia dan refund dicatat sebagai kas keluar. Tidak bisa diurungkan."
-                  data-confirm-title="Batalkan transaksi ini?" data-confirm-ok="Ya, batalkan">
+                  x-data="{
+                      r: @js($refund),
+                      pot: Number(@js(old('pokok_potongan', 0))) || 0,
+                      get potPokok() { return Math.min(Math.max(0, this.pot), this.r.pokok_dibayar) },
+                      get refundPokok() { return this.r.pokok_dibayar - this.potPokok },
+                      get total() { return this.r.reservasi_refund + this.r.booking_refund + this.refundPokok },
+                      get lebih() { return this.pot > this.r.pokok_dibayar },
+                      get pesan() {
+                          return 'Reservasi ' + rupiah(this.r.reservasi_refund) + ' + Booking ' + rupiah(this.r.booking_refund)
+                              + ' + DP & angsuran ' + rupiah(this.refundPokok) + ' = ' + rupiah(this.total)
+                              + ' dikembalikan dan dicatat sebagai kas keluar. Kavling kembali tersedia. Tidak bisa diurungkan.'
+                      },
+                  }"
+                  x-on:money-changed="if ($event.detail.name === 'pokok_potongan') pot = $event.detail.value"
+                  :data-confirm="pesan" data-confirm-title="Batalkan transaksi ini?" data-confirm-ok="Ya, batalkan">
                 @csrf
                 <x-modal-body>
                     <div class="overflow-hidden rounded-kontrol border border-slate-200">
                         <div class="table-wrap">
                             <table class="table">
-                                <thead><tr><th>Pembayaran</th><th class="text-right">Dibayar</th><th class="text-right">Refund</th></tr></thead>
+                                <thead><tr><th>Jenis uang</th><th class="text-right">Dibayar</th><th class="text-right">Potongan</th><th class="text-right">Dikembalikan</th></tr></thead>
                                 <tbody>
-                                    @forelse ($refund['baris'] as $b)
-                                        <tr>
-                                            <td class="wrap">{{ $b['label'] }}<span class="block text-xs text-slate-500">{{ $b['aturan'] }}</span></td>
-                                            <td class="text-right tabular-nums">{{ rupiah($b['dibayar']) }}</td>
-                                            <td class="text-right font-medium tabular-nums">{{ $b['refund'] === null ? '?' : rupiah($b['refund']) }}</td>
-                                        </tr>
-                                    @empty
-                                        <tr><td colspan="3" class="text-center text-slate-500">Belum ada pembayaran.</td></tr>
-                                    @endforelse
+                                    <tr>
+                                        <td class="wrap">Reservasi<span class="block text-xs text-slate-500">Dikembalikan penuh</span></td>
+                                        <td class="text-right tabular-nums">{{ rupiah($refund['reservasi_dibayar']) }}</td>
+                                        <td class="text-right tabular-nums text-slate-400">—</td>
+                                        <td class="text-right font-medium tabular-nums">{{ rupiah($refund['reservasi_refund']) }}</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="wrap">Booking fee<span class="block text-xs text-slate-500">Dipotong {{ rupiah($potonganBooking) }} untuk pos marketing</span></td>
+                                        <td class="text-right tabular-nums">{{ rupiah($refund['booking_dibayar']) }}</td>
+                                        <td class="text-right tabular-nums">{{ rupiah($refund['booking_potongan']) }}</td>
+                                        <td class="text-right font-medium tabular-nums">{{ rupiah($refund['booking_refund']) }}</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="wrap">DP & angsuran<span class="block text-xs text-slate-500">Potongan diisi di bawah</span></td>
+                                        <td class="text-right tabular-nums">{{ rupiah($refund['pokok_dibayar']) }}</td>
+                                        <td class="text-right tabular-nums" x-text="rupiah(potPokok)"></td>
+                                        <td class="text-right font-medium tabular-nums" x-text="rupiah(refundPokok)"></td>
+                                    </tr>
                                 </tbody>
-                                @if ($refund['baris'])
-                                    <tfoot><tr><td>Total</td><td class="text-right tabular-nums">{{ rupiah($refund['total_bayar']) }}</td><td class="text-right tabular-nums">{{ $refund['total_refund'] === null ? '?' : rupiah($refund['total_refund']) }}</td></tr></tfoot>
-                                @endif
+                                <tfoot><tr><td>Total</td><td class="text-right tabular-nums">{{ rupiah($refund['total_dibayar']) }}</td><td></td><td class="text-right tabular-nums" x-text="rupiah(total)"></td></tr></tfoot>
                             </table>
                         </div>
                     </div>
-                    @unless ($refund['lengkap'])
-                        <div class="flex gap-2 rounded-kontrol bg-amber-50 px-3 py-2 text-sm text-amber-900">
-                            <x-icon name="warning" class="size-5 text-amber-500"/>
-                            <p>Aturan refund DP/angsuran belum diisi. <a href="{{ route('proyek.index') }}#grup-penjualan" class="font-medium underline">Buka Pengaturan</a></p>
-                        </div>
-                    @endunless
-                    <x-field label="Tanggal Batal" name="tanggal_batal" required>
-                        <x-input type="date" name="tanggal_batal" :value="now()->toDateString()" :max="now()->toDateString()"/>
+                    @if ($refund['pokok_dibayar'] > 0)
+                        <x-field label="Potongan DP & angsuran" name="pokok_potongan" :hint="'Maksimal ' . rupiah($refund['pokok_dibayar']) . '. Isi 0 bila dikembalikan penuh.'">
+                            <x-money name="pokok_potongan" :value="0"/>
+                        </x-field>
+                        <p x-show="lebih" x-cloak class="-mt-2 text-xs text-red-600">Potongan melebihi DP & angsuran yang sudah masuk.</p>
+                    @else
+                        <input type="hidden" name="pokok_potongan" value="0">
+                    @endif
+                    <x-field label="Dasar ketentuan / catatan" name="dasar_ketentuan" hint="Mis. pasal PPJB atau kesepakatan yang menjadi dasar potongan.">
+                        <x-textarea name="dasar_ketentuan" rows="2"/>
                     </x-field>
+                    <div class="grid gap-4 sm:grid-cols-2">
+                        <x-field label="Tanggal Batal" name="tanggal_batal" required>
+                            <x-input type="date" name="tanggal_batal" :value="now()->toDateString()" :max="now()->toDateString()"/>
+                        </x-field>
+                    </div>
                     <x-field label="Alasan" name="alasan" required><x-textarea name="alasan" rows="2"/></x-field>
                 </x-modal-body>
                 <x-modal-footer batal="Kembali">
-                    <x-button type="submit" variant="danger" icon="ban" :disabled="! $refund['lengkap']">Batalkan Transaksi</x-button>
+                    <x-button type="submit" variant="danger" icon="ban" x-bind:disabled="lebih">Batalkan Transaksi</x-button>
                 </x-modal-footer>
             </form>
         </x-modal>

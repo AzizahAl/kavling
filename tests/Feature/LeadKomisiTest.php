@@ -31,18 +31,28 @@ class LeadKomisiTest extends TestCase
         parent::setUp();
         Pengaturan::lupakan();
         $this->withoutVite();
-        $this->agen = Agen::create(['kode_agen' => 'AG-001', 'nama_agen' => 'Sari', 'komisi_persen' => 2.5]);
+        $this->agen = Agen::create(['kode_agen' => 'AG-001', 'nama_agen' => 'Sari']);
         $this->lead = app(LeadService::class);
     }
 
-    private function transaksi(?int $agenId = null, string $kode = 'TR-A01'): TransaksiPenjualan
+    private function transaksi(?int $agenId = null, string $kode = 'TR-A01', bool $bayarReservasi = true): TransaksiPenjualan
     {
         $k = Konsumen::create(['id_konsumen' => 'CUS-' . $kode, 'nama_lengkap' => 'K ' . $kode, 'nik' => str_pad((string) crc32($kode), 16, '0'), 'no_hp' => '0812', 'alamat' => 'Garut']);
 
-        return app(TransaksiService::class)->buat([
+        $t = app(TransaksiService::class)->buat([
             'konsumen_id' => $k->id, 'kavling_id' => Kavling::firstWhere('kode_kavling', $kode)->id, 'agen_id' => $agenId,
             'tanggal' => '2026-09-10', 'jenis_pembayaran' => 'cash', 'nominal_dp' => 0,
         ]);
+        if ($bayarReservasi) {
+            $this->bayar($t, 'reservasi', 500000);
+        }
+
+        return $t->fresh();
+    }
+
+    private function bayar(TransaksiPenjualan $t, string $jenis, float $nominal): void
+    {
+        app(TransaksiService::class)->catatPembayaran($t, ['tanggal' => '2026-09-10', 'jenis' => $jenis, 'nominal' => $nominal, 'metode' => 'transfer']);
     }
 
     private function leadBaru(string $tgl = '2026-09-01'): Lead
@@ -74,6 +84,12 @@ class LeadKomisiTest extends TestCase
         $this->assertSame([0, 1, 0], array_values(array_slice($r('2026-09-05', '2026-09-05'), 1)));
         $this->assertSame([1, 1, 1], array_values(array_slice($r('2026-09-01', '2026-09-30'), 1)));
 
+        // Transaksi yang masih "menunggu pembayaran" belum bisa jadi closing
+        $tunggu = $this->transaksi(null, 'TR-A02', bayarReservasi: false);
+        $l3 = $this->leadBaru();
+        $this->lead->keProspek($l3, '2026-09-02', null, null);
+        $this->gagal(fn () => $this->lead->keClosing($l3, $tunggu->id, '2026-09-10', null, null), 'transaksi_id');
+
         // Transaksi yang sudah dipakai tidak bisa dipakai lead lain
         $l2 = $this->leadBaru();
         $this->lead->keProspek($l2, '2026-09-02', null, null);
@@ -94,37 +110,58 @@ class LeadKomisiTest extends TestCase
         $this->gagal(fn () => $this->lead->keClosing($l, $t->id, '2026-09-10', null, null), 'transaksi_id');
     }
 
-    public function test_komisi_jadi_hak_setelah_ppjb_dan_pembayaran_masuk_kas(): void
+    public function test_komisi_nominal_jadi_hak_saat_booking_terbayar(): void
     {
         $svc = app(KomisiService::class);
         $t = $this->transaksi($this->agen->id);
 
         $r = $svc->ringkasan($this->agen);
         $this->assertEquals(49000000, $r['nilai_penjualan']);
-        $this->assertEquals(1225000, $r['komisi_potensi']);   // 2,5% × 49 jt
-        $this->assertEquals(0, $r['komisi_hak']);
+        $this->assertEquals(1000000, $r['komisi_potensi'], 'Rp1.000.000 per transaksi, bukan persen');
+        $this->assertEquals(0, $r['komisi_hak'], 'Baru reservasi');
         $this->gagal(fn () => $svc->bayar($this->agen, ['tanggal' => '2026-09-20', 'nominal' => 1000, 'metode' => 'tunai'], null), 'nominal');
 
-        $t->checklist->update(['ppjb_status' => 'selesai']);
-        app(TransaksiService::class)->sinkronKavling($t->kavling);
-        $this->assertEquals(1225000, $svc->ringkasan($this->agen)['komisi_hak']);
+        $this->bayar($t, 'booking', 2000000);
+        $this->assertEquals(1000000, $svc->ringkasan($this->agen)['komisi_hak']);
 
-        $svc->bayar($this->agen, ['tanggal' => '2026-09-20', 'nominal' => 500000, 'metode' => 'transfer'], null);
+        $svc->bayar($this->agen, ['tanggal' => '2026-09-20', 'nominal' => 400000, 'metode' => 'transfer'], null);
         $r = $svc->ringkasan($this->agen);
-        $this->assertEquals(725000, $r['sisa']);
-        $this->assertEquals(500000, KasTransaksi::where('asal', 'komisi')->sum('nominal'));
+        $this->assertEquals(600000, $r['sisa']);
+        $this->assertEquals(400000, KasTransaksi::where('asal', 'komisi')->sum('nominal'));
         $this->gagal(fn () => $svc->bayar($this->agen, ['tanggal' => '2026-09-21', 'nominal' => 800000, 'metode' => 'tunai'], null), 'nominal');
 
         $svc->hapusBayar($this->agen->komisiPembayarans()->first());
         $this->assertSame(0, KasTransaksi::where('asal', 'komisi')->count());
+
+        // Titik hak diubah ke PPJB → belum hak
+        Pengaturan::simpan(['komisi_hak_saat' => 'ppjb']);
+        $this->assertEquals(0, $svc->ringkasan($this->agen)['komisi_hak']);
     }
 
-    public function test_komisi_bawaan_dari_pengaturan(): void
+    public function test_komisi_saat_transaksi_batal_mengikuti_pengaturan(): void
     {
-        $a = Agen::create(['kode_agen' => 'AG-009', 'nama_agen' => 'Tanpa Persen']);
-        $this->assertNull($a->persenKomisi());
-        Pengaturan::simpan(['komisi_default_persen' => 3]);
-        $this->assertEquals(3, $a->persenKomisi());
+        $svc = app(KomisiService::class);
+        $t = $this->transaksi($this->agen->id);
+        $this->bayar($t, 'booking', 2000000);
+        app(TransaksiService::class)->batal($t, ['tanggal' => '2026-09-15', 'alasan' => 'Mundur']);
+
+        $this->assertEquals(1000000, $svc->ringkasan($this->agen)['komisi_hak'], 'Bawaan: tetap jadi hak');
+        Pengaturan::simpan(['komisi_saat_batal' => 'gugur']);
+        $this->assertEquals(0, $svc->ringkasan($this->agen)['komisi_hak']);
+    }
+
+    public function test_komisi_nominal_dari_pengaturan_dan_per_agen(): void
+    {
+        $a = Agen::create(['kode_agen' => 'AG-009', 'nama_agen' => 'Standar']);
+        $this->assertEquals(1000000, $a->nominalKomisi());
+        Pengaturan::simpan(['komisi_nominal' => 1250000]);
+        $this->assertEquals(1250000, $a->nominalKomisi());
+        $a->update(['komisi_nominal' => 1500000]);
+        $this->assertEquals(1500000, $a->fresh()->nominalKomisi(), 'Nominal khusus agen menimpa standar');
+
+        // Menunggu pembayaran tidak dihitung komisi
+        $this->transaksi($a->id, 'TR-A03', bayarReservasi: false);
+        $this->assertEquals(0, app(KomisiService::class)->ringkasan($a)['komisi_potensi']);
     }
 
     public function test_halaman_lead_dan_agen_terbuka(): void
@@ -135,7 +172,7 @@ class LeadKomisiTest extends TestCase
             $this->get($url)->assertOk();
         }
         $this->post(route('lead.prospek', $l), ['tanggal' => now()->toDateString()])->assertSessionHasNoErrors();
-        $this->post(route('agen.store'), ['nama_agen' => 'Baru', 'komisi_persen' => ''])->assertSessionHasNoErrors();
+        $this->post(route('agen.store'), ['nama_agen' => 'Baru', 'komisi_nominal' => ''])->assertSessionHasNoErrors();
         $this->assertSame('AG-002', Agen::latest('id')->value('kode_agen'));
     }
 

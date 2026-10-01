@@ -6,7 +6,7 @@
     $awal = old('_form') === 'kavling'
         ? ['id' => old('_id'), 'blok' => old('blok'), 'nomor' => old('nomor'), 'tipe' => old('tipe'), 'ukuran' => old('ukuran'), 'luas' => old('luas'), 'catatan' => old('catatan'), 'terkunci' => (bool) old('_terkunci')]
         : $kosong;
-    $labelStatus = fn ($s) => $s === 'dp' ? 'DP / Angsuran' : \App\Support\Status::label($s);
+    $labelStatus = fn ($s) => \App\Models\Kavling::LABEL_STATUS[$s] ?? $s;
 @endphp
 
 @section('content')
@@ -28,7 +28,7 @@
         </x-slot:actions>
     </x-page-header>
 
-    <div class="mb-5 grid grid-cols-3 gap-3 lg:grid-cols-6">
+    <div class="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-7">
         <x-stat-card label="Total" :value="$total" tone="utama" :href="route('kavling.index')"/>
         @foreach (\App\Models\Kavling::STATUS as $s)
             <x-stat-card :label="$labelStatus($s)" :value="$jumlah[$s] ?? 0" :href="route('kavling.index', ['status' => $s])"

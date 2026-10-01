@@ -42,7 +42,7 @@
                             <td>
                                 <div class="flex flex-wrap gap-1.5">
                                     @forelse ($k->transaksis as $t)
-                                        <a href="{{ route('transaksi-penjualan.show', $t) }}" class="inline-flex items-center gap-1.5 text-sm font-medium text-slate-800 hover:text-brand-700">{{ $t->kavling->kode_kavling }} <x-badge :status="$t->status"/></a>
+                                        <a href="{{ route('transaksi-penjualan.show', $t) }}" class="inline-flex items-center gap-1.5 text-sm font-medium text-slate-800 hover:text-brand-700">{{ $t->kavling->kode_kavling }} <x-status-bayar :t="$t"/></a>
                                     @empty
                                         <span class="text-slate-400">—</span>
                                     @endforelse
@@ -69,7 +69,7 @@
                         <p class="text-xs text-slate-500">{{ $k->id_konsumen }} · {{ $k->no_hp }}</p>
                         <div class="mt-1.5 flex flex-wrap items-center gap-1.5">
                             @foreach ($k->transaksis as $t)
-                                <span class="inline-flex items-center gap-1 text-xs font-medium text-slate-700">{{ $t->kavling->kode_kavling }} <x-badge :status="$t->status"/></span>
+                                <span class="inline-flex items-center gap-1 text-xs font-medium text-slate-700">{{ $t->kavling->kode_kavling }} <x-status-bayar :t="$t"/></span>
                             @endforeach
                             <span class="text-xs text-slate-500 tabular-nums">{{ rupiah($k->total_bayar) }}</span>
                         </div>

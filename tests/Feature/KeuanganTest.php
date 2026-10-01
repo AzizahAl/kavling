@@ -59,35 +59,56 @@ class KeuanganTest extends TestCase
 
     public function test_refund_mengurangi_alokasi_seimbang(): void
     {
-        Pengaturan::simpan(['refund_dp_persen' => 100, 'refund_angsuran_persen' => 100]);
         $t = $this->transaksi();
         $svc = app(TransaksiService::class);
         $svc->catatPembayaran($t, ['tanggal' => '2026-09-02', 'jenis' => 'reservasi', 'nominal' => 500000, 'metode' => 'tunai']);
-        $svc->batal($t, '2026-09-05', 'Batal');
+        $svc->batal($t, ['tanggal' => '2026-09-05', 'alasan' => 'Batal']);
 
         $this->assertEquals(0, AlokasiKas::sum('nominal'));
         $this->assertEquals(0, AlokasiKas::where('pos', 'tanah')->sum('nominal'));
+        $this->assertEquals(500000, KasTransaksi::where('asal', 'refund')->sum('nominal'));
     }
 
-    public function test_kelayakan_laba(): void
+    public function test_kewajiban_tanah_dan_kelayakan_laba(): void
     {
         $svc = app(AlokasiService::class);
         $t = $this->transaksi();
         app(TransaksiService::class)->catatPembayaran($t, ['tanggal' => '2026-09-02', 'jenis' => 'pelunasan', 'nominal' => 40000000, 'metode' => 'transfer']);
+        Rab::where('kategori', 'Legalitas')->update(['anggaran' => 10000000]);
 
         $l = $svc->kelayakanLaba();
         $this->assertFalse($l['layak']);
-        $this->assertNotNull($l['tanah']['catatan']);       // target tanah belum diisi
+        $this->assertNotNull($l['tanah']['catatan'], 'Total kesepakatan belum ditetapkan');
         $this->assertEquals(40000000 - 500000, $l['laba']); // dikurangi kas keluar banner dari Excel
 
-        Pengaturan::simpan(['target_kewajiban_tanah' => 20000000]);
-        Rab::where('kategori', 'Legalitas')->update(['anggaran' => 10000000]);
+        // Pembayaran ke pemilik lahan = kas keluar
+        $this->post(route('kewajiban-tanah.store'), ['tanggal' => '2026-09-03', 'nominal' => 15000000, 'keterangan' => 'Tahap 1', 'metode' => 'transfer'])->assertSessionHasNoErrors();
+        $this->assertEquals(15000000, KasTransaksi::where('asal', 'tanah')->where('jenis', 'keluar')->sum('nominal'));
+        $this->assertFalse($svc->kelayakanLaba()['tanah']['terpenuhi'], 'Total belum ditetapkan → belum lunas walau sudah bayar');
+
+        $this->put(route('kewajiban-tanah.total'), ['total' => 10000000])->assertSessionHasErrors('total');
+        $this->put(route('kewajiban-tanah.total'), ['total' => 20000000])->assertSessionHasNoErrors();
         $l = $svc->kelayakanLaba();
+        $this->assertFalse($l['tanah']['terpenuhi']);
+        $this->assertEquals(5000000, $l['tanah']['sisa']);
+        $this->assertEquals(0, $l['laba_tersedia']);
+
+        $this->post(route('kewajiban-tanah.store'), ['tanggal' => '2026-09-04', 'nominal' => 5000000, 'keterangan' => 'Pelunasan', 'metode' => 'tunai'])->assertSessionHasNoErrors();
+        $l = $svc->kelayakanLaba();
+        $laba = 40000000 - 500000 - 20000000;
         $this->assertTrue($l['tanah']['terpenuhi']);
         $this->assertTrue($l['legal']['terpenuhi']);
         $this->assertTrue($l['layak']);
-        $this->assertEquals(round(39500000 * 0.8), $l['bagian_pengelola']);
-        $this->assertEquals(round(39500000 * 0.2), $l['bagian_pemilik']);
+        $this->assertEquals($laba, $l['laba_tersedia']);
+        $this->assertEquals(round($laba * 0.8), $l['bagian_pengelola']);
+        $this->assertEquals(round($laba * 0.2), $l['bagian_pemilik']);
+
+        $this->get(route('kewajiban-tanah.index'))->assertOk()->assertSee('Lunas')->assertSee('Pelunasan');
+
+        // Hapus pembayaran → kas ikut terhapus, tanah kembali belum lunas
+        $this->delete(route('kewajiban-tanah.destroy', \App\Models\PembayaranTanah::latest('id')->first()))->assertSessionHasNoErrors();
+        $this->assertEquals(15000000, KasTransaksi::where('asal', 'tanah')->sum('nominal'));
+        $this->assertFalse($svc->kelayakanLaba()['tanah']['terpenuhi']);
     }
 
     public function test_realisasi_rab_dari_kas_keluar(): void
@@ -115,7 +136,7 @@ class KeuanganTest extends TestCase
     {
         $t = $this->transaksi();
         app(TransaksiService::class)->catatPembayaran($t, ['tanggal' => '2026-09-02', 'jenis' => 'dp', 'nominal' => 5000000, 'metode' => 'transfer']);
-        foreach ([route('kas-proyek.index'), route('kas-proyek.index', ['jenis' => 'keluar', 'pos' => 'marketing']), route('rab.index'), route('cashflow.index')] as $url) {
+        foreach ([route('kas-proyek.index'), route('kas-proyek.index', ['jenis' => 'keluar', 'pos' => 'marketing']), route('rab.index'), route('cashflow.index'), route('kewajiban-tanah.index')] as $url) {
             $this->get($url)->assertOk();
         }
     }

@@ -47,10 +47,20 @@ class HalamanTest extends TestCase
             route('skema-harga.index'), route('konsumen.index'), route('konsumen.show', $t->konsumen_id),
             route('transaksi-penjualan.index'), route('transaksi-penjualan.create'), route('transaksi-penjualan.show', $t),
             route('transaksi-penjualan.edit', $t), route('pembayaran.kwitansi', $p),
-            route('kas-proyek.index'), route('rab.index'), route('agen.index'),
+            route('kas-proyek.index'), route('rab.index'), route('agen.index'), route('kewajiban-tanah.index'),
+            route('cashflow.index'), route('legal.index'), route('transaksi-penjualan.index', ['status' => 'menunggu']),
         ] as $url) {
             $this->get($url)->assertOk();
         }
+
+        // Transaksi menunggu pembayaran: tampil terpisah dengan sisa waktu tahan
+        $tunggu = app(\App\Services\TransaksiService::class)->buat([
+            'konsumen_id' => $t->konsumen_id, 'kavling_id' => \App\Models\Kavling::firstWhere('kode_kavling', 'TR-A05')->id,
+            'tanggal' => now()->toDateString(), 'jenis_pembayaran' => 'cash', 'nominal_dp' => 0,
+        ]);
+        $this->get(route('transaksi-penjualan.index'))->assertOk()->assertSee('Menunggu Pembayaran Reservasi')->assertSee($tunggu->kode_transaksi);
+        $this->get(route('transaksi-penjualan.show', $tunggu))->assertOk()->assertSee('kavling ditahan sampai')->assertSee('hitungMundur');
+        $this->get(route('dashboard'))->assertOk()->assertSee($tunggu->kode_transaksi);
 
         $this->get(route('pembayaran.kwitansi.unduh', $p))->assertOk()->assertHeader('content-type', 'application/pdf');
         $this->getJson(route('konsumen.cari', ['q' => 'Aziz']))->assertOk()->assertJsonCount(1);
@@ -83,12 +93,14 @@ class HalamanTest extends TestCase
         $this->delete(route('kas-proyek.destroy', $kas))->assertSessionHas('error');
         $this->assertModelExists($kas);
 
-        // Batal tanpa aturan refund → ditolak; setelah diisi → berhasil
-        $this->post(route('transaksi-penjualan.batal', $t), ['tanggal_batal' => now()->toDateString(), 'alasan' => 'Mundur'])->assertSessionHasErrors('alasan');
-        $this->put(route('proyek.update'), array_merge($this->pengaturanForm(), ['refund_dp_persen' => 0, 'refund_angsuran_persen' => 0]))->assertSessionHasNoErrors();
-        $this->post(route('transaksi-penjualan.batal', $t), ['tanggal_batal' => now()->toDateString(), 'alasan' => 'Mundur'])->assertSessionHasNoErrors();
+        // Pembatalan: form menampilkan rincian; potongan melebihi DP+angsuran ditolak
+        $this->get(route('transaksi-penjualan.show', $t))->assertOk()->assertSee('Potongan DP &amp; angsuran', false)->assertSee('Rp7.350.000');
+        $batal = ['tanggal_batal' => now()->toDateString(), 'alasan' => 'Mundur', 'dasar_ketentuan' => 'PPJB Pasal 4 ayat 2'];
+        $this->post(route('transaksi-penjualan.batal', $t), $batal + ['pokok_potongan' => 8000000])->assertSessionHasErrors('pokok_potongan');
+        $this->post(route('transaksi-penjualan.batal', $t), $batal + ['pokok_potongan' => 1000000])->assertSessionHasNoErrors();
         $this->assertSame('tersedia', $t->kavling->fresh()->status);
-        $this->assertEquals(500000, KasTransaksi::where('asal', 'refund')->sum('nominal'));
+        $this->assertEquals(500000 + 6350000, KasTransaksi::where('asal', 'refund')->sum('nominal'), 'Reservasi penuh + DP − potongan');
+        $this->get(route('transaksi-penjualan.show', $t))->assertOk()->assertSee('PPJB Pasal 4 ayat 2')->assertSee('Riwayat Status');
     }
 
     public function test_pengaturan_menolak_alokasi_bukan_100_persen(): void
@@ -100,11 +112,15 @@ class HalamanTest extends TestCase
     public function test_pengaturan_menerima_koma_desimal(): void
     {
         // Sebelumnya kolom bertipe number membuang koma: 17,34 tersimpan 1734
-        $this->put(route('proyek.update'), array_merge($this->pengaturanForm(), ['luas_lahan_are' => '17,34', 'komisi_default_persen' => '2,5']))
+        $this->put(route('proyek.update'), array_merge($this->pengaturanForm(), ['luas_lahan_are' => '17,34', 'komisi_nominal' => '1500000', 'terjual_saat' => 'lunas']))
             ->assertSessionHasNoErrors();
         Pengaturan::lupakan();
         $this->assertEquals(17.34, Pengaturan::get('luas_lahan_are'));
-        $this->assertEquals(2.5, Pengaturan::get('komisi_default_persen'));
+        $this->assertEquals(1500000, Pengaturan::get('komisi_nominal'));
+        $this->assertSame('lunas', Pengaturan::get('terjual_saat'));
+
+        $this->put(route('proyek.update'), array_merge($this->pengaturanForm(), ['terjual_saat' => 'spk']))->assertSessionHasErrors('terjual_saat');
+        $this->put(route('proyek.update'), array_merge($this->pengaturanForm(), ['potongan_booking' => 3000000]))->assertSessionHasErrors('potongan_booking');
         $this->get(route('proyek.index'))->assertOk();
     }
 

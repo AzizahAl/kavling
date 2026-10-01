@@ -153,7 +153,7 @@ class LeadController extends Controller
             'agens'    => Agen::where('aktif', true)->when($this->agenLogin(), fn ($q, $id) => $q->whereKey($id))->orderBy('nama_agen')->pluck('nama_agen', 'id'),
             'kavlings' => Kavling::orderBy('kode_kavling')->pluck('kode_kavling', 'id'),
             // Transaksi aktif yang belum menjadi closing lead mana pun
-            'transaksiBebas' => TransaksiPenjualan::aktif()->whereDoesntHave('lead')
+            'transaksiBebas' => TransaksiPenjualan::berjalan()->whereDoesntHave('lead')
                 ->when($this->agenLogin(), fn ($q, $id) => $q->where('agen_id', $id))->with(['konsumen', 'kavling'])->latest('tanggal')->get()
                 ->map(fn ($t) => ['id' => $t->id, 'agen_id' => $t->agen_id, 'label' => "{$t->kode_transaksi} · {$t->kavling->kode_kavling} · {$t->konsumen->nama_lengkap}"]),
         ];

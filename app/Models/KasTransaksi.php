@@ -15,11 +15,12 @@ class KasTransaksi extends Model
         'pembayaran' => 'Pembayaran Konsumen',
         'refund'     => 'Refund Pembatalan',
         'komisi'     => 'Komisi Agen',
+        'tanah'      => 'Kewajiban Tanah',
     ];
 
     protected $fillable = [
         'tanggal', 'kode', 'kategori', 'pos', 'rab_id', 'jenis', 'asal',
-        'pembayaran_id', 'transaksi_id', 'komisi_pembayaran_id',
+        'pembayaran_id', 'transaksi_id', 'komisi_pembayaran_id', 'pembayaran_tanah_id',
         'uraian', 'nominal', 'sumber', 'catatan',
     ];
 
@@ -44,6 +45,7 @@ class KasTransaksi extends Model
         return match ($this->asal) {
             'pembayaran', 'refund' => $this->transaksi_id ? route('transaksi-penjualan.show', $this->transaksi_id) : null,
             'komisi' => ($a = KomisiPembayaran::find($this->komisi_pembayaran_id)?->agen_id) ? route('agen.show', $a) : null,
+            'tanah'  => route('kewajiban-tanah.index'),
             default => null,
         };
     }

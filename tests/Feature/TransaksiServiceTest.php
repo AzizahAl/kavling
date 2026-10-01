@@ -2,7 +2,9 @@
 
 namespace Tests\Feature;
 
+use App\Models\AlokasiKas;
 use App\Models\KasTransaksi;
+use App\Models\StatusRiwayat;
 use App\Models\Kavling;
 use App\Models\Konsumen;
 use App\Models\TransaksiPenjualan;
@@ -64,8 +66,10 @@ class TransaksiServiceTest extends TestCase
     {
         $t = $this->buat();
         $this->assertEquals(49000000, $t->nilai_jual);
-        $this->assertEquals('reservasi', $t->status);
-        $this->assertSame('reservasi', $t->kavling->fresh()->status);
+        $this->assertEquals('menunggu', $t->status, 'Belum ada pembayaran: Reservasi – Menunggu Pembayaran');
+        $this->assertSame('reservasi', $t->kavling->fresh()->status, 'Kavling ditahan');
+        $this->assertNotNull($t->batas_tahan);
+        $this->assertSame(48, (int) round(now()->diffInHours($t->batas_tahan)));
 
         $jadwal = $t->jadwalAngsurans()->get();
         $this->assertCount(18, $jadwal);
@@ -106,7 +110,11 @@ class TransaksiServiceTest extends TestCase
         $this->bayar($t, 'angsuran', 17500000);
         $t->refresh();
         $this->assertSame('lunas', $t->status);
-        $this->assertSame('dp', $t->kavling->status, 'Lunas tapi belum PPJB: kavling belum terjual');
+        $this->assertSame('lunas', $t->kavling->status, 'Lunas tapi belum PPJB: kavling Lunas, belum Terjual');
+
+        $t->checklist->update(['ppjb_status' => 'selesai', 'ppjb_tanggal' => '2026-10-05']);
+        $this->svc->sinkronKavling($t->kavling);
+        $this->assertSame('terjual', $t->kavling->fresh()->status, 'Lunas + PPJB = Terjual');
     }
 
     public function test_validasi_aturan(): void
@@ -129,37 +137,100 @@ class TransaksiServiceTest extends TestCase
         $p = $this->bayar($t, 'booking', 2000000);
         $this->assertSame('booking', $t->fresh()->status);
         $this->svc->hapusPembayaran($p);
-        $this->assertSame('reservasi', $t->fresh()->status);
+        $this->assertSame('menunggu', $t->fresh()->status);
         $this->assertSame(0, KasTransaksi::where('asal', 'pembayaran')->count());
     }
 
-    public function test_batal_refund_dan_kavling_kembali_tersedia(): void
+    public function test_batal_rincian_per_jenis_uang(): void
     {
-        Pengaturan::simpan(['refund_dp_persen' => 50, 'refund_angsuran_persen' => 0]);
         $t = $this->buat();
         $this->bayar($t, 'reservasi', 500000);
         $this->bayar($t, 'booking', 2000000);
         $this->bayar($t, 'dp', 7350000);
+        $this->bayar($t, 'angsuran', 2313888, '2026-11-01');
 
-        $r = $this->svc->rincianRefund($t->fresh());
-        $this->assertEquals(500000 + 1000000 + 3675000, $r['total_refund']);
+        $r = $this->svc->rincianPembatalan($t->fresh(), 1000000);
+        $this->assertEquals(500000, $r['reservasi_refund'], 'Reservasi dikembalikan penuh');
+        $this->assertEquals(1000000, $r['booking_potongan'], 'Booking dipotong sesuai Pengaturan');
+        $this->assertEquals(1000000, $r['booking_refund']);
+        $this->assertEquals(9663888, $r['pokok_dibayar'], 'DP + angsuran yang sudah masuk');
+        $this->assertEquals(8663888, $r['pokok_refund']);
+        $this->assertEquals(500000 + 1000000 + 8663888, $r['total_refund']);
 
-        $this->svc->batal($t, '2026-10-10', 'Konsumen mundur');
+        $this->svc->batal($t, ['tanggal' => '2026-11-10', 'alasan' => 'Konsumen mundur', 'pokok_potongan' => 1000000, 'dasar_ketentuan' => 'PPJB Pasal 4']);
         $t->refresh();
         $this->assertSame('batal', $t->status);
         $this->assertSame('tersedia', $t->kavling->status);
-        $this->assertEquals(5175000, KasTransaksi::where('asal', 'refund')->sum('nominal'));
+        $this->assertEquals(10163888, KasTransaksi::where('asal', 'refund')->where('jenis', 'keluar')->sum('nominal'), 'Refund = kas keluar');
+
+        $p = $t->pembatalan;
+        $this->assertSame('PPJB Pasal 4', $p->dasar_ketentuan);
+        $this->assertEquals(10163888, $p->total_refund);
+        $this->assertEquals(-10163888, $p->alokasis()->sum('nominal'), 'Koreksi alokasi = −refund');
 
         // Kavling bisa dijual lagi dengan transaksi baru
         $baru = $this->buat();
-        $this->assertSame('reservasi', $baru->status);
+        $this->assertSame('menunggu', $baru->status);
     }
 
-    public function test_batal_ditolak_bila_aturan_refund_kosong(): void
+    public function test_potongan_booking_masuk_pos_marketing(): void
+    {
+        $t = $this->buat();
+        $this->bayar($t, 'reservasi', 500000);
+        $this->bayar($t, 'booking', 2000000);
+        $this->bayar($t, 'dp', 7350000);
+        $this->svc->batal($t, ['tanggal' => '2026-10-10', 'alasan' => 'x', 'pokok_potongan' => 0]);
+
+        // Semua uang kembali kecuali potongan booking → sisa alokasi transaksi ini hanya Rp1.000.000 di pos Marketing
+        $sisa = AlokasiKas::query()
+            ->leftJoin('kas_transaksis as k', 'k.id', '=', 'alokasi_kas.kas_transaksi_id')
+            ->leftJoin('pembatalan_transaksis as pb', 'pb.id', '=', 'alokasi_kas.pembatalan_id')
+            ->whereRaw('COALESCE(k.transaksi_id, pb.transaksi_id) = ?', [$t->id])
+            ->groupBy('alokasi_kas.pos')->selectRaw('alokasi_kas.pos, SUM(alokasi_kas.nominal) n')->pluck('n', 'pos')
+            ->map(fn ($n) => (float) $n)->filter(fn ($n) => abs($n) > 0.5);
+        $this->assertEquals(['marketing' => 1000000.0], $sisa->all());
+    }
+
+    public function test_potongan_melebihi_pembayaran_ditolak(): void
     {
         $t = $this->buat();
         $this->bayar($t, 'dp', 1000000);
-        $this->expectValidasi(fn () => $this->svc->batal($t, '2026-10-10', 'x'), 'alasan');
+        $this->expectValidasi(fn () => $this->svc->batal($t, ['tanggal' => '2026-10-10', 'alasan' => 'x', 'pokok_potongan' => 2000000]), 'pokok_potongan');
+        $this->assertSame('dp', $t->fresh()->status);
+    }
+
+    public function test_menunggu_tidak_dihitung_dan_dilepas_saat_kedaluwarsa(): void
+    {
+        $tunggu = $this->buat('TR-A01');
+        $bayar = $this->buat('TR-A02');
+        $this->bayar($bayar, 'reservasi', 500000);
+
+        $this->assertSame('reservasi', $bayar->fresh()->status);
+        $this->assertEquals([$bayar->id], TransaksiPenjualan::berjalan()->pluck('id')->all(), 'Menunggu tidak dihitung sebagai penjualan');
+        $this->assertSame(0, $this->svc->lepasKedaluwarsa(), 'Belum lewat batas tahan');
+
+        $this->travel(49)->hours();
+        $this->assertSame(1, $this->svc->lepasKedaluwarsa());
+
+        $tunggu->refresh();
+        $this->assertSame('batal', $tunggu->status);
+        $this->assertTrue($tunggu->pembatalan->kedaluwarsa);
+        $this->assertEquals(0, $tunggu->pembatalan->total_refund);
+        $this->assertSame('tersedia', $tunggu->kavling->status);
+        $this->assertSame('reservasi', $bayar->fresh()->status, 'Yang sudah bayar reservasi tidak dilepas');
+    }
+
+    public function test_riwayat_status_tercatat_berurutan(): void
+    {
+        $t = $this->buat();
+        $this->bayar($t, 'reservasi', 500000);
+        $this->bayar($t, 'booking', 2000000);
+        $t->checklist->update(['spk_status' => 'selesai']);
+
+        $bayar = StatusRiwayat::where('transaksi_id', $t->id)->where('jenis', 'pembayaran')->orderBy('id')->get(['dari', 'ke', 'user_id']);
+        $this->assertEquals([[null, 'menunggu'], ['menunggu', 'reservasi'], ['reservasi', 'booking']], $bayar->map(fn ($r) => [$r->dari, $r->ke])->all());
+        $this->assertNotNull($bayar->first()->user_id, 'Pengguna yang mengubah tercatat');
+        $this->assertTrue(StatusRiwayat::where('transaksi_id', $t->id)->where('jenis', 'kavling')->where('ke', 'booking')->exists());
     }
 
     public function test_harga_naik_setelah_3_ppjb_dan_harga_lama_terkunci(): void
@@ -168,7 +239,13 @@ class TransaksiServiceTest extends TestCase
         $trx = collect(['TR-A01', 'TR-A02', 'TR-A03'])->map(fn ($k) => $this->buat($k));
         $lain = $this->buat('TR-A04');
 
+        // PPJB pada transaksi yang belum bayar apa pun tidak dihitung terjual
+        $trx[0]->checklist->update(['ppjb_status' => 'selesai', 'ppjb_tanggal' => '2026-10-05']);
+        $this->svc->sinkronKavling($trx[0]->kavling);
+        $this->assertSame(0, $harga->jumlahTerjual());
+
         foreach ($trx as $t) {
+            $this->bayar($t, 'reservasi', 500000);
             $t->checklist->update(['ppjb_status' => 'selesai', 'ppjb_tanggal' => '2026-10-05']);
             $this->svc->sinkronKavling($t->kavling);
         }

@@ -11,51 +11,76 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 /**
- * Komisi agen:
- * - dihitung dari harga jual kavling × persen komisi agen (atau bawaan di Pengaturan),
- * - menjadi hak agen saat kavling berstatus Terjual (PPJB ditandatangani),
- * - dibayar manual oleh admin (bisa bertahap); setiap pembayaran tercatat sebagai kas keluar.
+ * Komisi agen (arahan sementara):
+ * - nominal tetap per transaksi (Pengaturan "komisi_nominal", bisa diganti per agen), bukan persen harga,
+ * - menjadi hak saat titik di Pengaturan "komisi_hak_saat" tercapai (sementara: booking terbayar),
+ * - transaksi batal: mengikuti Pengaturan "komisi_saat_batal" (sementara: tetap jadi hak bila titiknya sudah tercapai),
+ * - transaksi yang belum menerima uang (menunggu) tidak dihitung,
+ * - dibayar manual oleh admin (bisa bertahap); setiap pembayaran tercatat sebagai kas keluar pos Marketing.
  */
 class KomisiService
 {
+    public const TITIK = ['booking' => 2, 'dp' => 3, 'lunas' => 4];
+
     public function __construct(private KasService $kas) {}
 
-    /** Rincian per transaksi aktif milik agen. */
+    public function nominal(Agen $agen): float
+    {
+        return $agen->nominalKomisi();
+    }
+
+    /** Apakah komisi transaksi ini sudah menjadi hak agen (dibaca dari uang yang benar-benar masuk). */
+    public function sudahHak(TransaksiPenjualan $t): bool
+    {
+        if ($t->isBatal() && Pengaturan::get('komisi_saat_batal', 'tetap') === 'gugur') {
+            return false;
+        }
+        $titik = Pengaturan::get('komisi_hak_saat', 'booking');
+
+        return $titik === 'ppjb'
+            ? (bool) $t->checklist?->ppjbDitandatangani()
+            : $t->tingkatTercapai() >= (self::TITIK[$titik] ?? 2);
+    }
+
+    /** Rincian per transaksi agen yang sudah menghasilkan penerimaan (batal ikut bila komisinya tetap hak). */
     public function rincian(Agen $agen): Collection
     {
-        $persen = $agen->persenKomisi();
+        $nominal = $this->nominal($agen);
+        $label = Pengaturan::PILIHAN['komisi_hak_saat'][Pengaturan::get('komisi_hak_saat', 'booking')] ?? '';
 
-        return $agen->transaksis()->aktif()->with(['kavling', 'konsumen', 'checklist'])->latest('tanggal')->get()
-            ->map(function (TransaksiPenjualan $t) use ($persen) {
-                $hak = (bool) $t->checklist?->ppjbDitandatangani();
-                $komisi = $persen === null ? null : round((float) $t->nilai_jual * $persen / 100);
+        return $agen->transaksis()->where('status', '!=', 'menunggu')->with(['kavling', 'konsumen', 'checklist', 'pembayarans'])->latest('tanggal')->get()
+            ->map(function (TransaksiPenjualan $t) use ($nominal, $label) {
+                $hak = $this->sudahHak($t);
 
                 return (object) [
                     'transaksi' => $t,
-                    'terjual'   => $hak,
-                    'komisi'    => $komisi,
-                    'hak'       => $hak ? $komisi : 0,
+                    'terjual'   => $hak,              // nama lama dipertahankan: "sudah jadi hak"
+                    'komisi'    => $nominal,
+                    'hak'       => $hak ? $nominal : 0,
+                    'keterangan' => $hak ? 'Hak agen' : ($t->isBatal() ? 'Batal sebelum jadi hak' : 'Menunggu: ' . mb_strtolower($label)),
                 ];
-            });
+            })
+            ->filter(fn ($r) => ! $r->transaksi->isBatal() || $r->hak > 0)
+            ->values();
     }
 
     /** Ringkasan angka satu agen (semua dihitung, tidak ada yang diketik manual). */
     public function ringkasan(Agen $agen, ?Collection $rincian = null): array
     {
         $rincian ??= $this->rincian($agen);
-        $persen = $agen->persenKomisi();
+        $berjalan = $rincian->filter(fn ($r) => ! $r->transaksi->isBatal());
         $dibayar = (float) $agen->komisiPembayarans()->sum('nominal');
-        $hak = $persen === null ? null : (float) $rincian->sum('hak');
+        $hak = (float) $rincian->sum('hak');
 
         return [
-            'persen'           => $persen,
-            'transaksi'        => $rincian->count(),
+            'nominal'          => $this->nominal($agen),
+            'transaksi'        => $berjalan->count(),
             'terjual'          => $rincian->where('terjual', true)->count(),
-            'nilai_penjualan'  => (float) $rincian->sum(fn ($r) => $r->transaksi->nilai_jual),
-            'komisi_potensi'   => $persen === null ? null : (float) $rincian->sum('komisi'),
+            'nilai_penjualan'  => (float) $berjalan->sum(fn ($r) => $r->transaksi->nilai_jual),
+            'komisi_potensi'   => (float) $rincian->sum('komisi'),
             'komisi_hak'       => $hak,
             'dibayar'          => $dibayar,
-            'sisa'             => $hak === null ? null : $hak - $dibayar,
+            'sisa'             => $hak - $dibayar,
         ];
     }
 
@@ -65,9 +90,6 @@ class KomisiService
             Agen::lockForUpdate()->find($agen->id);
             $r = $this->ringkasan($agen);
 
-            if ($r['persen'] === null) {
-                throw ValidationException::withMessages(['nominal' => 'Persen komisi agen ini belum diatur (di data agen atau di Pengaturan Proyek).']);
-            }
             if ((float) $data['nominal'] > $r['sisa']) {
                 throw ValidationException::withMessages(['nominal' => 'Pembayaran melebihi sisa komisi yang sudah menjadi hak agen (' . rupiah(max(0, $r['sisa'])) . ').']);
             }

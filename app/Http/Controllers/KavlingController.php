@@ -54,12 +54,10 @@ class KavlingController extends Controller
     {
         $data = $this->validasi($request, $kavling);
 
-        // Blok/nomor/luas tidak boleh diubah saat kavling sedang bertransaksi (harga sudah terkunci di transaksi)
-        if ($kavling->transaksiAktif()->exists()) {
-            $berubah = $data['kode_kavling'] !== $kavling->kode_kavling || (float) $data['luas'] !== (float) $kavling->luas;
-            if ($berubah) {
-                return back()->withInput()->with('error', "Kavling {$kavling->kode_kavling} sedang bertransaksi. Blok, nomor, dan luas tidak bisa diubah.");
-            }
+        // Blok/nomor tidak boleh diubah saat bertransaksi. Luas BOLEH diperbarui (hasil pengukuran resmi):
+        // harga & luas di transaksi tetap terkunci, yang berubah hanya data kavling.
+        if ($kavling->transaksiAktif()->exists() && $data['kode_kavling'] !== $kavling->kode_kavling) {
+            return back()->withInput()->with('error', "Kavling {$kavling->kode_kavling} sedang bertransaksi. Blok dan nomor tidak bisa diubah.");
         }
 
         $kavling->update($data);

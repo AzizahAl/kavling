@@ -8,6 +8,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DokumenController;
 use App\Http\Controllers\KasProyekController;
 use App\Http\Controllers\KavlingController;
+use App\Http\Controllers\KewajibanTanahController;
 use App\Http\Controllers\KonsumenController;
 use App\Http\Controllers\LeadController;
 use App\Http\Controllers\PembayaranController;
@@ -112,5 +113,10 @@ Route::middleware('auth')->group(function () {
         Route::delete('/kas-proyek/{kasTransaksi}', [KasProyekController::class, 'destroy'])->name('kas-proyek.destroy');
 
         Route::get('/alokasi-cashflow', [CashflowController::class, 'index'])->name('cashflow.index');
+
+        Route::get('/kewajiban-tanah', [KewajibanTanahController::class, 'index'])->name('kewajiban-tanah.index');
+        Route::put('/kewajiban-tanah/total', [KewajibanTanahController::class, 'aturTotal'])->name('kewajiban-tanah.total');
+        Route::post('/kewajiban-tanah', [KewajibanTanahController::class, 'store'])->name('kewajiban-tanah.store');
+        Route::delete('/kewajiban-tanah/{pembayaran}', [KewajibanTanahController::class, 'destroy'])->name('kewajiban-tanah.destroy');
     });
 });

@@ -25,10 +25,11 @@ class DashboardController extends Controller
         $jumlahStatus = Kavling::selectRaw('status, COUNT(*) n')->groupBy('status')->pluck('n', 'status');
         $totalKavling = (int) $jumlahStatus->sum();
 
-        $aktif = TransaksiPenjualan::aktif();
+        // Angka penjualan & pendapatan hanya dari transaksi yang sudah menerima uang
+        $aktif = TransaksiPenjualan::berjalan();
         $nilaiJual = (float) (clone $aktif)->sum('nilai_jual');
         $pokok = (float) DB::table('pembayarans')->join('transaksi_penjualans as t', 't.id', '=', 'pembayarans.transaksi_id')
-            ->where('t.status', '!=', 'batal')->whereIn('pembayarans.jenis', TransaksiPenjualan::JENIS_POKOK)->sum('pembayarans.nominal');
+            ->whereNotIn('t.status', ['batal', 'menunggu'])->whereIn('pembayarans.jenis', TransaksiPenjualan::JENIS_POKOK)->sum('pembayarans.nominal');
         $kasMasuk = (float) KasTransaksi::where('jenis', 'masuk')->sum('nominal');
         $kasKeluar = (float) KasTransaksi::where('jenis', 'keluar')->sum('nominal');
         $anggaranRab = (float) Rab::sum('anggaran');
@@ -39,8 +40,8 @@ class DashboardController extends Controller
         $bulan = collect(range(0, 11))->map(fn ($i) => $mulai->copy()->addMonths($i)->format('Y-m'));
         $perBulan = fn ($q, string $kolomTgl, string $kolomNilai) => $q->where($kolomTgl, '>=', $mulai)
             ->selectRaw("DATE_FORMAT({$kolomTgl}, '%Y-%m') b, SUM({$kolomNilai}) n")->groupBy('b')->pluck('n', 'b');
-        $jualBulan = $perBulan(TransaksiPenjualan::aktif(), 'tanggal', 'nilai_jual');
-        $unitBulan = TransaksiPenjualan::aktif()->where('tanggal', '>=', $mulai)->selectRaw("DATE_FORMAT(tanggal, '%Y-%m') b, COUNT(*) n")->groupBy('b')->pluck('n', 'b');
+        $jualBulan = $perBulan(TransaksiPenjualan::berjalan(), 'tanggal', 'nilai_jual');
+        $unitBulan = TransaksiPenjualan::berjalan()->where('tanggal', '>=', $mulai)->selectRaw("DATE_FORMAT(tanggal, '%Y-%m') b, COUNT(*) n")->groupBy('b')->pluck('n', 'b');
         $masukBulan = $perBulan(KasTransaksi::where('jenis', 'masuk'), 'tanggal', 'nominal');
         $keluarBulan = $perBulan(KasTransaksi::where('jenis', 'keluar'), 'tanggal', 'nominal');
 
@@ -59,7 +60,7 @@ class DashboardController extends Controller
         $funnel = $lead->rekapPerAgen(now()->startOfMonth(), now()->endOfMonth());
 
         // Piutang terlambat
-        $terlambat = TransaksiPenjualan::aktif()->where('jenis_pembayaran', 'angsuran')->where('status', '!=', 'lunas')
+        $terlambat = TransaksiPenjualan::berjalan()->where('jenis_pembayaran', 'angsuran')->where('status', '!=', 'lunas')
             ->with(['konsumen', 'kavling', 'pembayarans', 'jadwalAngsurans'])->get()
             ->map(fn ($t) => (object) ['t' => $t])
             ->map(function ($x) use ($angsuran) {
@@ -84,7 +85,7 @@ class DashboardController extends Controller
                     ? $harga->nomorTahapAktif() * (int) Pengaturan::get('unit_per_kenaikan', 1) - $harga->jumlahTerjual() : null,
                 'nilai_jual'   => $nilaiJual,
                 'transaksi'    => (clone $aktif)->count(),
-                'uang_masuk'   => (float) Pembayaran::whereHas('transaksi', fn ($q) => $q->aktif())->sum('nominal'),
+                'uang_masuk'   => (float) Pembayaran::whereHas('transaksi', fn ($q) => $q->berjalan())->sum('nominal'),
                 'pokok'        => $pokok,
                 'piutang'      => $nilaiJual - $pokok,
                 'kas_masuk'    => $kasMasuk,
@@ -100,12 +101,14 @@ class DashboardController extends Controller
                 'masuk'  => $bulan->map(fn ($b) => (float) ($masukBulan[$b] ?? 0))->all(),
                 'keluar' => $bulan->map(fn ($b) => (float) ($keluarBulan[$b] ?? 0))->all(),
             ],
-            'transaksiTerbaru' => TransaksiPenjualan::with(['konsumen', 'kavling'])->denganRingkasan()->latest('tanggal')->latest('id')->limit(6)->get(),
+            'transaksiTerbaru' => TransaksiPenjualan::where('status', '!=', 'menunggu')->with(['konsumen', 'kavling'])->denganRingkasan()->latest('tanggal')->latest('id')->limit(6)->get(),
             'agenTop'     => $agenTop,
             'funnel'      => ['lead' => $funnel->sum('lead'), 'prospek' => $funnel->sum('prospek'), 'closing' => $funnel->sum('closing')],
             'terlambat'   => $terlambat,
             'pos'         => $pos,
             'laba'        => $alokasi->kelayakanLaba($pos),
+            'tanah'       => app(\App\Services\KewajibanTanahService::class)->ringkasan(),
+            'menunggu'    => TransaksiPenjualan::menunggu()->with(['konsumen', 'kavling'])->orderBy('batas_tahan')->get(),
             'baseline'    => [
                 'Luas Lahan'  => angka(Pengaturan::get('luas_lahan_are'), 2) . ' are',
                 'Jalan Dalam' => angka(Pengaturan::get('lebar_jalan_m'), 1) . ' m',

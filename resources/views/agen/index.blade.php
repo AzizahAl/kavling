@@ -2,7 +2,7 @@
 @section('title', 'Agen')
 
 @php
-    $kosong = ['id' => null, 'nama_agen' => '', 'no_hp' => '', 'email' => '', 'komisi_persen' => '', 'aktif' => true, 'catatan' => ''];
+    $kosong = ['id' => null, 'nama_agen' => '', 'no_hp' => '', 'email' => '', 'komisi_nominal' => '', 'aktif' => true, 'catatan' => ''];
     $awal = old('_form') === 'agen' ? array_merge($kosong, request()->old(), ['id' => old('_id'), 'aktif' => (bool) old('aktif')]) : $kosong;
 @endphp
 
@@ -54,13 +54,13 @@
                             <td class="text-right tabular-nums">{{ $n['prospek'] }}</td>
                             <td class="text-right font-semibold tabular-nums">{{ $n['closing'] }}</td>
                             <td class="text-right tabular-nums">{{ rupiah($n['nilai_penjualan']) }}<div class="text-xs text-slate-500">{{ $n['transaksi'] }} transaksi</div></td>
-                            <td class="text-right tabular-nums">{{ $n['persen'] !== null ? persen($n['persen'], false, 2) : '—' }}</td>
-                            <td class="text-right tabular-nums">{{ $n['komisi_hak'] !== null ? rupiah($n['komisi_hak']) : '—' }}<div class="text-xs text-slate-500">{{ rupiah($n['dibayar']) }}</div></td>
-                            <td @class(['text-right font-semibold tabular-nums', 'text-red-600' => ($n['sisa'] ?? 0) < 0])>{{ $n['sisa'] !== null ? rupiah($n['sisa']) : '—' }}</td>
+                            <td class="text-right tabular-nums">{{ rupiah($n['nominal']) }}<div class="text-xs text-slate-500">per transaksi</div></td>
+                            <td class="text-right tabular-nums">{{ rupiah($n['komisi_hak']) }}<div class="text-xs text-slate-500">{{ rupiah($n['dibayar']) }}</div></td>
+                            <td @class(['text-right font-semibold tabular-nums', 'text-red-600' => ($n['sisa'] ?? 0) < 0])>{{ rupiah($n['sisa']) }}</td>
                             <td>
                                 <div class="flex justify-end gap-0.5">
                                     <x-icon-button icon="eye" label="Detail" :href="route('agen.show', $ag)"/>
-                                    <x-icon-button icon="pencil" label="Ubah" x-on:click="a = {{ Js::from(['id' => $ag->id, 'nama_agen' => $ag->nama_agen, 'no_hp' => $ag->no_hp, 'email' => $ag->email, 'komisi_persen' => $ag->komisi_persen, 'aktif' => $ag->aktif, 'catatan' => $ag->catatan]) }}; $dispatch('open-modal', 'agen')"/>
+                                    <x-icon-button icon="pencil" label="Ubah" x-on:click="a = {{ Js::from(['id' => $ag->id, 'nama_agen' => $ag->nama_agen, 'no_hp' => $ag->no_hp, 'email' => $ag->email, 'komisi_nominal' => $ag->komisi_nominal, 'aktif' => $ag->aktif, 'catatan' => $ag->catatan]) }}; $dispatch('open-modal', 'agen')"/>
                                     <x-delete-button :action="route('agen.destroy', $ag)" :title="'Hapus agen ' . $ag->nama_agen . '?'" message="Agen yang punya lead, transaksi, atau komisi tidak bisa dihapus. Nonaktifkan saja."/>
                                 </div>
                             </td>
@@ -69,9 +69,6 @@
                 </tbody>
             </table>
         </div>
-    @endif
-    @if (\App\Services\Pengaturan::get('komisi_default_persen') === null)
-        <p class="flex items-center gap-1.5 border-t border-slate-100 px-4 py-3 text-xs text-amber-700"><x-icon name="info" class="size-4"/>Komisi bawaan belum diatur di <a href="{{ route('proyek.index') }}#grup-penjualan" class="underline">Pengaturan</a>.</p>
     @endif
 </div>
 

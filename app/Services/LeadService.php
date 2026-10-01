@@ -75,6 +75,9 @@ class LeadService
             if ($t->isBatal()) {
                 $this->gagal('transaksi_id', "Transaksi {$t->kode_transaksi} sudah dibatalkan.");
             }
+            if ($t->isMenunggu()) {
+                $this->gagal('transaksi_id', "Transaksi {$t->kode_transaksi} belum menerima pembayaran reservasi.");
+            }
             if (Lead::where('transaksi_id', $t->id)->exists()) {
                 $this->gagal('transaksi_id', "Transaksi {$t->kode_transaksi} sudah menjadi closing lead lain.");
             }

@@ -3,10 +3,10 @@
 
 @php
     // Warna status kavling sama dengan badge (Status.php)
-    $warnaStatus = ['tersedia' => '#14b8a6', 'reservasi' => '#38bdf8', 'booking' => '#f59e0b', 'dp' => '#8b5cf6', 'terjual' => '#334155'];
+    $warnaStatus = collect(\App\Models\Kavling::STATUS)->mapWithKeys(fn ($s) => [$s => ['tersedia' => '#14b8a6', 'reservasi' => '#38bdf8', 'booking' => '#f59e0b', 'dp' => '#8b5cf6', 'lunas' => '#2e8b62', 'terjual' => '#334155'][$s] ?? '#94a3b8'])->all();
     $persenRab = $stats['anggaran_rab'] > 0 ? $stats['realisasi_rab'] / $stats['anggaran_rab'] * 100 : 0;
     $persenBayar = $stats['nilai_jual'] > 0 ? $stats['pokok'] / $stats['nilai_jual'] * 100 : 0;
-    $labelStatus = fn ($s) => $s === 'dp' ? 'DP / Angsuran' : \App\Support\Status::label($s);
+    $labelStatus = fn ($s) => \App\Models\Kavling::LABEL_STATUS[$s] ?? $s;
 @endphp
 
 @section('content')
@@ -79,7 +79,7 @@
                                 <p class="text-sm font-medium text-slate-900 tabular-nums">{{ rupiah($t->nilai_jual) }}</p>
                                 <p class="text-xs text-slate-500 tabular-nums">{{ angka($t->persenLunas()) }}% terbayar</p>
                             </div>
-                            <x-badge :status="$t->status"/>
+                            <x-status-bayar :t="$t"/>
                         </a>
                     </li>
                 @endforeach
@@ -137,6 +137,15 @@
                     <div class="flex justify-between gap-2"><dt class="text-slate-600">{{ $p->label }} <span class="text-xs text-slate-400">{{ persen($p->persen, false) }}</span></dt><dd @class(['tabular-nums', 'text-red-600' => $p->saldo < 0])>{{ rupiah($p->saldo) }}</dd></div>
                 @endforeach
             </dl>
+            <a href="{{ route('kewajiban-tanah.index') }}" class="-mx-1 block rounded-kontrol border-t border-slate-100 px-1 pt-4 hover:bg-slate-50">
+                <div class="flex justify-between gap-2"><span class="text-slate-600">Kewajiban tanah</span>
+                    <span class="font-semibold tabular-nums">{{ $tanah['total'] === null ? 'Total belum ditetapkan' : ($tanah['lunas'] ? 'Lunas' : 'Sisa ' . rupiah_singkat($tanah['sisa'])) }}</span></div>
+                @if ($tanah['total'])
+                    <div class="mt-1.5 h-2 overflow-hidden rounded-full bg-slate-100"><div class="h-full rounded-full bg-brand-500" style="width: {{ min(100, $tanah['persen']) }}%"></div></div>
+                @endif
+                <p class="mt-1 text-xs text-slate-500 tabular-nums">Dibayar {{ rupiah($tanah['terbayar']) }}{{ $tanah['total'] ? ' / ' . rupiah($tanah['total']) : '' }}</p>
+            </a>
+            <div class="flex justify-between gap-2"><span class="text-slate-600">Laba bersih tersedia</span><span class="font-semibold text-brand-700 tabular-nums">{{ rupiah($laba['laba_tersedia']) }}</span></div>
             <div class="flex items-center justify-between gap-2 rounded-kontrol bg-slate-50 px-3 py-2.5">
                 <span class="text-slate-600">Bagi laba {{ persen($laba['persen_pengelola'], false) }}:{{ persen($laba['persen_pemilik'], false) }}</span>
                 <x-badge :status="$laba['layak'] ? 'selesai' : 'belum'" :label="$laba['layak'] ? 'Layak' : 'Belum layak'"/>
@@ -144,6 +153,25 @@
         </div>
     </x-card>
 </div>
+
+@if ($menunggu->isNotEmpty())
+    <x-card class="mb-5" title="Menunggu Pembayaran Reservasi" subtitle="Kavling ditahan sementara; belum dihitung sebagai penjualan." :padding="false">
+        <x-slot:actions><a href="{{ route('transaksi-penjualan.index', ['status' => 'menunggu']) }}" class="tautan text-sm">Semua</a></x-slot:actions>
+        <ul class="divide-y divide-slate-100">
+            @foreach ($menunggu as $m)
+                <li x-data="hitungMundur(@js($m->batas_tahan?->toIso8601String()))">
+                    <a href="{{ route('transaksi-penjualan.show', $m) }}" class="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-slate-50 sm:px-5">
+                        <div class="min-w-0 flex-1">
+                            <p class="truncate text-sm font-medium text-slate-900">{{ $m->konsumen->nama_lengkap }}</p>
+                            <p class="text-xs text-slate-500">{{ $m->kavling->kode_kavling }} · {{ $m->kode_transaksi }}</p>
+                        </div>
+                        <span class="text-sm font-semibold tabular-nums" :class="sisa < 3600 ? 'text-red-600' : 'text-amber-700'" x-text="teks">…</span>
+                    </a>
+                </li>
+            @endforeach
+        </ul>
+    </x-card>
+@endif
 
 <div class="grid grid-cols-1 gap-5 xl:grid-cols-3">
     <x-card title="Angsuran Terlambat" :padding="false" class="xl:col-span-2">

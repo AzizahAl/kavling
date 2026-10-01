@@ -15,7 +15,7 @@ class KonsumenController extends Controller
     public function index(Request $request)
     {
         $konsumens = Konsumen::query()
-            ->withCount(['transaksis as transaksi_aktif' => fn ($q) => $q->aktif()])
+            ->withCount(['transaksis as transaksi_aktif' => fn ($q) => $q->berjalan()])
             ->with(['transaksis' => fn ($q) => $q->aktif()->with('kavling')])
             ->withSum('pembayarans as total_bayar', 'pembayarans.nominal')
             ->when($request->filled('cari'), fn ($q) => $q->where(fn ($w) => $w
@@ -30,7 +30,7 @@ class KonsumenController extends Controller
 
         $stats = [
             'total'      => Konsumen::count(),
-            'aktif'      => Konsumen::whereHas('transaksis', fn ($t) => $t->aktif())->count(),
+            'aktif'      => Konsumen::whereHas('transaksis', fn ($t) => $t->berjalan())->count(),
             'lunas'      => TransaksiPenjualan::where('status', 'lunas')->distinct('konsumen_id')->count('konsumen_id'),
             'total_bayar' => (float) DB::table('pembayarans')->join('transaksi_penjualans as t', 't.id', '=', 'pembayarans.transaksi_id')
                 ->where('t.status', '!=', 'batal')->sum('pembayarans.nominal'),

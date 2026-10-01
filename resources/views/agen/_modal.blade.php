@@ -12,11 +12,10 @@
                 <x-field label="No. HP" name="no_hp"><x-input name="no_hp" type="tel" inputmode="tel" x-model="a.no_hp"/></x-field>
                 <x-field label="Email" name="email"><x-input name="email" type="email" x-model="a.email"/></x-field>
             </div>
-            @php $bawaan = \App\Services\Pengaturan::get('komisi_default_persen'); @endphp
-            <x-field label="Komisi" name="komisi_persen" :hint="'Kosong = bawaan ' . ($bawaan !== null ? persen($bawaan, false, 2) : '(belum diatur)')">
-                <div class="relative">
-                    <x-input name="komisi_persen" inputmode="decimal" x-model="a.komisi_persen" class="pr-9 tabular-nums"/>
-                    <span class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3 text-sm text-slate-400">%</span>
+            <x-field label="Komisi per Transaksi" name="komisi_nominal" :hint="'Kosong = standar ' . rupiah(\App\Services\Pengaturan::get('komisi_nominal', 0)) . ' (Pengaturan)'">
+                <div x-effect="$dispatch('set-money', { name: 'komisi_nominal', value: a.komisi_nominal ?? '' })"
+                     x-on:money-changed="if ($event.detail.name === 'komisi_nominal') a.komisi_nominal = $event.detail.value || ''">
+                    <x-money name="komisi_nominal"/>
                 </div>
             </x-field>
             <label class="flex items-center gap-2.5 text-sm text-slate-700">

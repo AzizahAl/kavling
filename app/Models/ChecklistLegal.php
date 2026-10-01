@@ -7,11 +7,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ChecklistLegal extends Model
 {
+    /** Status DOKUMEN. Reservasi bukan dokumen (urusan pembayaran); kolomnya tetap disimpan untuk data lama. */
     public const ITEM = [
-        'reservasi' => 'Reservasi',
-        'spk'       => 'Booking / SPK',
-        'ppjb'      => 'PPJB',
-        'ajb'       => 'AJB / Legal',
+        'spk'  => 'SPK',
+        'ppjb' => 'PPJB',
+        'ajb'  => 'AJB',
     ];
 
     protected $fillable = [

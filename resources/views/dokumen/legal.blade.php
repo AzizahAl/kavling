@@ -20,9 +20,9 @@
         get adaFilter() { return this.q || this.blok || this.ppjb || this.hanyaTransaksi },
      }">
 
-<x-page-header title="Checklist Legal" subtitle="PPJB selesai = kavling Terjual." :breadcrumbs="['Dokumen' => null, 'Checklist Legal' => null]"/>
+<x-page-header title="Checklist Legal" :subtitle="\App\Services\Pengaturan::get('terjual_saat', 'ppjb') === 'lunas' ? 'Kavling Terjual saat lunas. SPK setelah booking terbayar.' : 'PPJB selesai = kavling Terjual. SPK setelah booking terbayar.'" :breadcrumbs="['Dokumen' => null, 'Checklist Legal' => null]"/>
 
-<div class="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+<div class="mb-5 grid grid-cols-3 gap-3">
     @foreach (\App\Models\ChecklistLegal::ITEM as $item => $label)
         <x-stat-card :label="$label" :value="$ringkas[$item] . ' / ' . $aktifCount" hint="selesai" :tone="$item === 'ppjb' ? 'utama' : 'default'"/>
     @endforeach
@@ -74,10 +74,14 @@
                         <td>
                             @if ($c)
                                 <div class="flex justify-end gap-0.5">
-                                    <x-button variant="ghost" size="sm" :href="route('dokumen.lihat', [$t, 'spk'])">SPK</x-button>
+                                    @if ($alasanSpk = $t->alasanSpkBelumBisa())
+                                        <x-button variant="ghost" size="sm" disabled :title="$alasanSpk">SPK</x-button>
+                                    @else
+                                        <x-button variant="ghost" size="sm" :href="route('dokumen.lihat', [$t, 'spk'])">SPK</x-button>
+                                    @endif
                                     <x-button variant="ghost" size="sm" :href="route('dokumen.lihat', [$t, 'ppjb'])">PPJB</x-button>
                                     <x-icon-button icon="pencil" label="Ubah checklist"
-                                                   x-on:click="ubah({{ Js::from(collect(array_keys(\App\Models\ChecklistLegal::ITEM))->flatMap(fn ($i) => [$i . '_status' => $c->{$i . '_status'}, $i . '_tanggal' => $c->{$i . '_tanggal'}?->toDateString()])->merge(['id' => $c->id, 'kavling' => $kv->kode_kavling, 'catatan' => $c->catatan])) }})"/>
+                                                   x-on:click="ubah({{ Js::from(collect(array_keys(\App\Models\ChecklistLegal::ITEM))->flatMap(fn ($i) => [$i . '_status' => $c->{$i . '_status'}, $i . '_tanggal' => $c->{$i . '_tanggal'}?->toDateString()])->merge(['id' => $c->id, 'kavling' => $kv->kode_kavling, 'catatan' => $c->catatan, 'spk_alasan' => $t?->alasanSpkBelumBisa()])) }})"/>
                                 </div>
                             @endif
                         </td>
@@ -103,7 +107,8 @@
                     </x-field>
                 </div>
             @endforeach
-            <p class="flex gap-2 rounded-kontrol bg-brand-50 px-3 py-2 text-xs text-brand-800"><x-icon name="info" class="size-4"/>PPJB Selesai: kavling Terjual, tahap harga dihitung ulang, komisi agen jadi hak.</p>
+            <p x-show="c.spk_alasan" x-cloak class="flex gap-2 rounded-kontrol bg-amber-50 px-3 py-2 text-xs text-amber-900"><x-icon name="warning" class="size-4 text-amber-500"/><span>SPK belum bisa diproses: <span x-text="c.spk_alasan"></span></span></p>
+            <p class="flex gap-2 rounded-kontrol bg-brand-50 px-3 py-2 text-xs text-brand-800"><x-icon name="info" class="size-4"/>Perubahan status tercatat di riwayat transaksi. Status kavling & tahap harga diperbarui otomatis.</p>
             <x-field label="Catatan" name="catatan"><x-input name="catatan" x-model="c.catatan"/></x-field>
         </x-modal-body>
         <x-modal-footer><x-button type="submit">Simpan</x-button></x-modal-footer>

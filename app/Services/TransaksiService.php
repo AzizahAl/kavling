@@ -11,7 +11,8 @@ use Illuminate\Validation\ValidationException;
 /**
  * Semua aturan bisnis transaksi penjualan ada di sini (bukan di controller):
  * pembuatan transaksi + penguncian harga, pencatatan pembayaran (otomatis masuk kas),
- * perubahan status transaksi & kavling, dan pembatalan + refund.
+ * status pembayaran & status kavling (terpisah dari status dokumen), riwayat perubahan status,
+ * penahanan kavling selama menunggu uang reservasi, dan pembatalan + pengembalian per jenis uang.
  */
 class TransaksiService
 {
@@ -19,6 +20,8 @@ class TransaksiService
         private HargaService $harga,
         private KasService $kas,
         private AngsuranService $angsuran,
+        private AlokasiService $alokasi,
+        private RiwayatService $riwayat,
     ) {}
 
     // ================================================================
@@ -50,7 +53,8 @@ class TransaksiService
             $t = TransaksiPenjualan::create([
                 'kode_transaksi'   => Penomoran::berikut('transaksi_penjualans', 'kode_transaksi', Pengaturan::get('prefix_transaksi', 'TRX')),
                 'tanggal'          => $data['tanggal'],
-                'status'           => 'reservasi',
+                'status'           => 'menunggu',
+                'batas_tahan'      => now()->addHours(max(1, (int) Pengaturan::get('batas_tahan_jam', 48))),
                 'konsumen_id'      => $data['konsumen_id'],
                 'kavling_id'       => $kavling->id,
                 'agen_id'          => $data['agen_id'] ?? null,
@@ -69,6 +73,7 @@ class TransaksiService
 
             $t->checklist()->create([]);
             $this->angsuran->buatJadwal($t);
+            $this->riwayat->catat('pembayaran', $t->id, $kavling->id, null, 'menunggu', 'Transaksi dibuat');
 
             if ($bayarAwal && (float) ($bayarAwal['nominal'] ?? 0) > 0) {
                 $this->catatPembayaran($t, $bayarAwal + ['tanggal' => $data['tanggal']], $userId, 'bayar_');
@@ -109,77 +114,111 @@ class TransaksiService
         });
     }
 
-    /** Hitung rincian refund bila transaksi dibatalkan sekarang (dipakai untuk pratinjau & eksekusi). */
-    public function rincianRefund(TransaksiPenjualan $t): array
+    /**
+     * Rincian pembatalan per jenis uang:
+     *  - reservasi dikembalikan penuh,
+     *  - booking dipotong (Pengaturan: potongan_booking) untuk komisi & marketing, sisanya dikembalikan,
+     *  - DP + angsuran + pelunasan: potongan diisi admin sesuai ketentuan PPJB, sisanya dikembalikan.
+     */
+    public function rincianPembatalan(TransaksiPenjualan $t, float $potonganPokok = 0): array
     {
         $t->loadMissing('pembayarans');
-        $rasio = fn (float $refund, float $biaya) => $biaya > 0 ? min(1, max(0, $refund / $biaya)) : 0;
+        $reservasi = $t->terbayarJenis('reservasi');
+        $booking = $t->terbayarJenis('booking');
+        $pokok = $t->pokokTerbayar();
+        $potBooking = min($booking, (float) Pengaturan::get('potongan_booking', 0));
+        $potPokok = min(max(0, $potonganPokok), $pokok);
 
-        $baris = [];
-        $tambah = function (string $label, float $dibayar, ?float $persen, string $aturan) use (&$baris) {
-            if ($dibayar <= 0) {
-                return;
-            }
-            $baris[] = [
-                'label'   => $label,
-                'dibayar' => $dibayar,
-                'refund'  => $persen === null ? null : round($dibayar * $persen),
-                'aturan'  => $aturan,
-            ];
-        };
-
-        $tambah('Reservasi', $t->terbayarJenis('reservasi'),
-            $rasio(Pengaturan::get('refund_reservasi', 0), (float) $t->biaya_reservasi),
-            'Refund ' . rupiah(Pengaturan::get('refund_reservasi')) . ' dari ' . rupiah($t->biaya_reservasi));
-        $tambah('Booking Fee', $t->terbayarJenis('booking'),
-            $rasio(Pengaturan::get('refund_booking', 0), (float) $t->biaya_booking),
-            'Refund ' . rupiah(Pengaturan::get('refund_booking')) . ' dari ' . rupiah($t->biaya_booking));
-
-        $pDp = Pengaturan::get('refund_dp_persen');
-        $tambah('Down Payment (DP)', $t->terbayarJenis('dp'), $pDp === null ? null : $pDp / 100,
-            $pDp === null ? 'Aturan refund DP belum diisi di Pengaturan' : 'Refund ' . persen($pDp, false));
-
-        $pAng = Pengaturan::get('refund_angsuran_persen');
-        $tambah('Angsuran & Pelunasan', $t->terbayarJenis('angsuran') + $t->terbayarJenis('pelunasan'), $pAng === null ? null : $pAng / 100,
-            $pAng === null ? 'Aturan refund angsuran belum diisi di Pengaturan' : 'Refund ' . persen($pAng, false));
-
-        $lengkap = collect($baris)->every(fn ($b) => $b['refund'] !== null);
-
-        return [
-            'baris'        => $baris,
-            'lengkap'      => $lengkap,
-            'total_bayar'  => collect($baris)->sum('dibayar'),
-            'total_refund' => $lengkap ? collect($baris)->sum('refund') : null,
+        $r = [
+            'reservasi_dibayar' => $reservasi, 'reservasi_refund' => $reservasi,
+            'booking_dibayar' => $booking, 'booking_potongan' => $potBooking, 'booking_refund' => $booking - $potBooking,
+            'pokok_dibayar' => $pokok, 'pokok_potongan' => $potPokok, 'pokok_refund' => $pokok - $potPokok,
         ];
+        $r['total_dibayar'] = $reservasi + $booking + $pokok;
+        $r['total_refund'] = $r['reservasi_refund'] + $r['booking_refund'] + $r['pokok_refund'];
+
+        return $r;
     }
 
-    public function batal(TransaksiPenjualan $t, string $tanggal, string $alasan): TransaksiPenjualan
+    /**
+     * @param array $data tanggal, alasan, pokok_potongan, dasar_ketentuan
+     */
+    public function batal(TransaksiPenjualan $t, array $data, bool $kedaluwarsa = false): TransaksiPenjualan
     {
-        return DB::transaction(function () use ($t, $tanggal, $alasan) {
+        return DB::transaction(function () use ($t, $data, $kedaluwarsa) {
             $t = TransaksiPenjualan::with(['pembayarans', 'kavling', 'konsumen'])->lockForUpdate()->findOrFail($t->id);
             $this->pastikanAktif($t, bolehLunas: true);
 
-            $refund = $this->rincianRefund($t);
-            if (! $refund['lengkap']) {
-                throw ValidationException::withMessages([
-                    'alasan' => 'Aturan refund DP/angsuran belum diisi di Pengaturan Proyek, jadi nilai refund belum bisa dihitung.',
-                ]);
+            $pokok = $t->pokokTerbayar();
+            $potongan = (float) ($data['pokok_potongan'] ?? 0);
+            if ($potongan < 0 || $potongan > $pokok) {
+                $this->gagal('pokok_potongan', 'Potongan DP & angsuran harus 0 sampai ' . rupiah($pokok) . '.');
             }
 
-            if ($refund['total_refund'] > 0) {
-                $rincian = collect($refund['baris'])
-                    ->map(fn ($b) => "{$b['label']}: dibayar " . rupiah($b['dibayar']) . ', refund ' . rupiah($b['refund']))
-                    ->implode('; ');
-                $this->kas->catatRefund($t, $refund['total_refund'], $tanggal, $rincian);
-            }
+            $r = $this->rincianPembatalan($t, $potongan);
+            $pembatalan = $t->pembatalan()->create(collect($r)->except('total_dibayar')->all() + [
+                'tanggal' => $data['tanggal'], 'alasan' => $data['alasan'] ?? null,
+                'dasar_ketentuan' => $data['dasar_ketentuan'] ?? null, 'kedaluwarsa' => $kedaluwarsa,
+                'dibuat_oleh' => auth()->id(),
+            ]);
 
-            $t->update(['status' => 'batal', 'tanggal_batal' => $tanggal, 'alasan_batal' => $alasan]);
+            if ($r['total_refund'] > 0) {
+                $kas = $this->kas->catatRefund($t, $r['total_refund'], $data['tanggal'], $this->teksRincian($r, $data['dasar_ketentuan'] ?? null), alokasikan: false);
+                $pembatalan->update(['kas_transaksi_id' => $kas->id]);
+            }
+            // Alokasi: balik alokasi uang yang dikembalikan + potongan booking masuk pos Marketing
+            $this->alokasi->alokasikanPembatalan($pembatalan);
+
+            $lama = $t->status;
+            $t->update(['status' => 'batal', 'tanggal_batal' => $data['tanggal'], 'alasan_batal' => $data['alasan'] ?? null]);
             $t->jadwalAngsurans()->delete();
+
+            $this->riwayat->catat('pembatalan', $t->id, $t->kavling_id, null, null,
+                ($kedaluwarsa ? 'Otomatis: batas tahan kavling habis tanpa pembayaran. ' : '') . $this->teksRincian($r, $data['dasar_ketentuan'] ?? null)
+                . (! empty($data['alasan']) && ! $kedaluwarsa ? ' Alasan: ' . $data['alasan'] : ''));
+            $this->riwayat->catat('pembayaran', $t->id, $t->kavling_id, $lama, 'batal', $data['alasan'] ?? null);
 
             $this->sinkronKavling($t->kavling);
 
             return $t;
         });
+    }
+
+    /**
+     * Transaksi "Menunggu Pembayaran" yang melewati batas tahan dibatalkan otomatis (kedaluwarsa) dan kavlingnya dilepas.
+     * Dipanggil setiap ada permintaan halaman (XAMPP tanpa penjadwal) dan oleh perintah tectona:lepas-kedaluwarsa.
+     */
+    public function lepasKedaluwarsa(): int
+    {
+        $jumlah = 0;
+        TransaksiPenjualan::menunggu()->whereNotNull('batas_tahan')->where('batas_tahan', '<', now())
+            ->whereDoesntHave('pembayarans')->get()
+            ->each(function (TransaksiPenjualan $t) use (&$jumlah) {
+                $this->batal($t, [
+                    'tanggal' => now()->toDateString(),
+                    'alasan'  => 'Kedaluwarsa: tidak ada pembayaran reservasi sampai ' . tanggal($t->batas_tahan, 'j M Y H:i'),
+                ], kedaluwarsa: true);
+                $jumlah++;
+            });
+
+        return $jumlah;
+    }
+
+    private function teksRincian(array $r, ?string $dasar): string
+    {
+        $bagian = [];
+        if ($r['reservasi_dibayar'] > 0) {
+            $bagian[] = 'Reservasi ' . rupiah($r['reservasi_dibayar']) . ' dikembalikan penuh';
+        }
+        if ($r['booking_dibayar'] > 0) {
+            $bagian[] = 'Booking ' . rupiah($r['booking_dibayar']) . ' − potongan ' . rupiah($r['booking_potongan']) . ' = ' . rupiah($r['booking_refund']);
+        }
+        if ($r['pokok_dibayar'] > 0) {
+            $bagian[] = 'DP & angsuran ' . rupiah($r['pokok_dibayar']) . ' − potongan ' . rupiah($r['pokok_potongan']) . ' = ' . rupiah($r['pokok_refund']);
+        }
+        $teks = $bagian ? implode('; ', $bagian) . '. Total dikembalikan ' . rupiah($r['total_refund']) . '.' : 'Tidak ada uang masuk.';
+
+        return $teks . ($dasar ? ' Dasar: ' . $dasar : '');
     }
 
     // ================================================================
@@ -243,21 +282,31 @@ class TransaksiService
     // SINKRONISASI STATUS
     // ================================================================
 
-    /** Hitung ulang status transaksi dari pembayaran, lalu status kavling. */
-    public function sinkron(TransaksiPenjualan $t): void
+    /** Hitung ulang status pembayaran dari uang yang masuk, lalu status kavling. Perubahan dicatat di riwayat. */
+    public function sinkron(TransaksiPenjualan $t, ?string $catatan = null): void
     {
         $t = $t->fresh(['pembayarans', 'kavling']);
 
         if (! $t->isBatal()) {
-            $t->update(['status' => $this->hitungStatus($t)]);
+            $lama = $t->status;
+            $baru = $this->hitungStatus($t);
+            if ($lama !== $baru) {
+                $ubah = ['status' => $baru];
+                // Kembali ke "menunggu" (mis. satu-satunya pembayaran dihapus) → batas tahan dimulai lagi
+                if ($baru === 'menunggu') {
+                    $ubah['batas_tahan'] = now()->addHours(max(1, (int) Pengaturan::get('batas_tahan_jam', 48)));
+                }
+                $t->update($ubah);
+                $this->riwayat->catat('pembayaran', $t->id, $t->kavling_id, $lama, $baru, $catatan);
+            }
         }
 
         $this->sinkronKavling($t->kavling);
     }
 
     /**
-     * Tahap boleh dilewati (mis. langsung angsuran tanpa DP). Status = tahap terjauh yang sudah dibayar:
-     * lunas > angsuran > dp > booking > reservasi.
+     * Status pembayaran = tahap terjauh yang sudah dibayar (tahap boleh dilewati, DP boleh 0):
+     * lunas > angsuran > dp > booking > reservasi (terbayar) > menunggu (belum ada uang masuk).
      */
     public function hitungStatus(TransaksiPenjualan $t): string
     {
@@ -268,35 +317,55 @@ class TransaksiService
             $ada('angsuran') || ($t->isAngsuran() && $ada('pelunasan')) => 'angsuran',
             $ada('dp') || $ada('pelunasan')                => 'dp',
             $ada('booking')                                => 'booking',
-            default                                        => 'reservasi',
+            $ada('reservasi')                              => 'reservasi',
+            default                                        => 'menunggu',
         };
     }
 
     /**
-     * Status kavling mengikuti transaksi aktifnya:
-     * tidak ada transaksi → tersedia; PPJB ditandatangani → terjual;
-     * selain itu reservasi / booking / dp (DP, angsuran, maupun lunas sebelum PPJB).
+     * Status UNIT kavling dari transaksi aktifnya:
+     * tidak ada transaksi → Tersedia; menunggu/reservasi → Reservasi; booking → Booking;
+     * DP/angsuran → DP/Angsuran; lunas → Lunas.
+     * Terjual bila lunas + PPJB, atau sesuai Pengaturan "terjual_saat" (PPJB ditandatangani / lunas).
      */
     public function sinkronKavling(Kavling $kavling): void
     {
         $terjualSebelum = $this->harga->jumlahTerjual();
+        $kavling->refresh();
 
         $aktif = $kavling->transaksiAktif()->with('checklist')->first();
-        $status = match (true) {
-            ! $aktif                                         => 'tersedia',
-            (bool) $aktif->checklist?->ppjbDitandatangani()  => 'terjual',
-            in_array($aktif->status, ['reservasi', 'booking']) => $aktif->status,
-            default                                          => 'dp',
-        };
+        $status = 'tersedia';
+        if ($aktif) {
+            $ppjb = (bool) $aktif->checklist?->ppjbDitandatangani();
+            $lunas = $aktif->status === 'lunas';
+            $penentu = Pengaturan::get('terjual_saat', 'ppjb');
+            // Transaksi "menunggu" belum menerima uang: tidak pernah dihitung terjual (tidak memengaruhi tahap harga)
+            $terjual = ! $aktif->isMenunggu() && (($ppjb && $lunas) || ($penentu === 'ppjb' && $ppjb) || ($penentu === 'lunas' && $lunas));
+
+            $status = $terjual ? 'terjual' : match ($aktif->status) {
+                'menunggu', 'reservasi' => 'reservasi',
+                'booking'               => 'booking',
+                'lunas'                 => 'lunas',
+                default                 => 'dp',
+            };
+        }
 
         if ($kavling->status !== $status) {
+            $lama = $kavling->status;
             $kavling->update(['status' => $status]);
+            $this->riwayat->catat('kavling', $aktif?->id ?? $kavling->transaksiPenjualans()->latest('id')->value('id'), $kavling->id, $lama, $status);
         }
 
         // Jumlah terjual berubah → tahap harga bisa naik/turun → harga kavling tersedia diperbarui
         if ($status === 'tersedia' || $this->harga->jumlahTerjual() !== $terjualSebelum) {
             $this->harga->sinkronHargaKavling();
         }
+    }
+
+    /** Hitung ulang status semua kavling (mis. setelah Pengaturan "terjual_saat" diubah). */
+    public function sinkronSemuaKavling(): void
+    {
+        Kavling::all()->each(fn (Kavling $k) => $this->sinkronKavling($k));
     }
 
     // ================================================================

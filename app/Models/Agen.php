@@ -9,10 +9,12 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 /** Angka performa agen dihitung KomisiService/LeadService, tidak disimpan di tabel ini. */
 class Agen extends Model
 {
-    protected $fillable = ['kode_agen', 'nama_agen', 'no_hp', 'email', 'komisi_persen', 'aktif', 'catatan'];
+    // komisi_persen = data lama (aturan persen, tidak dipakai lagi); komisi_nominal kosong = nominal bawaan di Pengaturan
+    protected $fillable = ['kode_agen', 'nama_agen', 'no_hp', 'email', 'komisi_persen', 'komisi_nominal', 'aktif', 'catatan'];
 
     protected $casts = [
         'komisi_persen' => 'decimal:2',
+        'komisi_nominal' => 'decimal:2',
         'aktif'         => 'boolean',
     ];
 
@@ -21,9 +23,9 @@ class Agen extends Model
     public function komisiPembayarans(): HasMany { return $this->hasMany(KomisiPembayaran::class)->latest('tanggal'); }
     public function user(): \Illuminate\Database\Eloquent\Relations\HasOne { return $this->hasOne(User::class); }
 
-    /** Persen komisi yang berlaku: milik agen, atau bawaan dari Pengaturan bila kosong. */
-    public function persenKomisi(): ?float
+    /** Nominal komisi per transaksi yang berlaku: milik agen, atau bawaan dari Pengaturan. */
+    public function nominalKomisi(): float
     {
-        return $this->komisi_persen !== null ? (float) $this->komisi_persen : Pengaturan::get('komisi_default_persen');
+        return $this->komisi_nominal !== null ? (float) $this->komisi_nominal : (float) Pengaturan::get('komisi_nominal', 0);
     }
 }

@@ -46,7 +46,7 @@
                                 @endif
                             </td>
                             <td class="text-right tabular-nums {{ $b->tunggakan > 0 ? 'font-semibold text-red-600' : 'text-slate-400' }}">{{ $b->tunggakan > 0 ? rupiah($b->tunggakan) : '—' }}</td>
-                            <td>@if ($b->telat)<x-badge status="terlambat" :label="'Telat ' . $b->hari_telat . ' hari'"/>@else<x-badge :status="$b->t->status"/>@endif</td>
+                            <td>@if ($b->telat)<x-badge status="terlambat" :label="'Telat ' . $b->hari_telat . ' hari'"/>@else<x-status-bayar :t="$b->t"/>@endif</td>
                         </tr>
                     @endforeach
                 </tbody>
@@ -60,7 +60,7 @@
                     <a href="{{ route('transaksi-penjualan.show', $b->t) }}" class="block px-4 py-3.5 active:bg-slate-50">
                         <div class="flex items-center justify-between gap-2">
                             <span class="truncate font-medium text-slate-900">{{ $b->t->konsumen->nama_lengkap }}</span>
-                            @if ($b->telat)<x-badge status="terlambat" :label="'Telat ' . $b->hari_telat . ' hr'"/>@else<x-badge :status="$b->t->status"/>@endif
+                            @if ($b->telat)<x-badge status="terlambat" :label="'Telat ' . $b->hari_telat . ' hr'"/>@else<x-status-bayar :t="$b->t"/>@endif
                         </div>
                         <p class="mt-0.5 text-xs text-slate-500">{{ $b->t->kavling->kode_kavling }} · {{ $b->t->isAngsuran() ? $b->lunas_ke . '/' . $b->jumlah . ' cicilan' : 'Cash' }}</p>
                         <div class="mt-2 grid grid-cols-2 gap-2 text-xs">

@@ -9,7 +9,12 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Kavling extends Model
 {
-    public const STATUS = ['tersedia', 'reservasi', 'booking', 'dp', 'terjual'];
+    /** Status UNIT kavling (ketersediaan), terpisah dari status pembayaran & dokumen. */
+    public const STATUS = ['tersedia', 'reservasi', 'booking', 'dp', 'lunas', 'terjual'];
+    public const LABEL_STATUS = [
+        'tersedia' => 'Tersedia', 'reservasi' => 'Reservasi', 'booking' => 'Booking',
+        'dp' => 'DP / Angsuran', 'lunas' => 'Lunas', 'terjual' => 'Terjual',
+    ];
     public const TIPE = ['Prima', 'Standard', 'Standard Hook'];
 
     protected $fillable = [
@@ -41,6 +46,6 @@ class Kavling extends Model
 
     public function getLabelStatusAttribute(): string
     {
-        return $this->status === 'dp' ? 'DP / Angsuran' : \App\Support\Status::label($this->status);
+        return self::LABEL_STATUS[$this->status] ?? $this->status;
     }
 }

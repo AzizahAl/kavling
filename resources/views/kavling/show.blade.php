@@ -43,7 +43,7 @@
                             <td>{{ $t->agen->nama_agen ?? '—' }}</td>
                             <td class="text-right tabular-nums">{{ rupiah($t->nilai_jual) }}</td>
                             <td class="text-right tabular-nums">{{ rupiah($t->pokokTerbayar()) }}</td>
-                            <td><x-badge :status="$t->status"/></td>
+                            <td><x-status-bayar :t="$t"/></td>
                             <td><x-badge :status="$t->checklist->ppjb_status ?? 'belum'"/></td>
                         </tr>
                     @endforeach

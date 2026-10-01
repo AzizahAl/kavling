@@ -16,7 +16,7 @@ class SkemaHargaController extends Controller
         $perUnit = max(1, (int) \App\Services\Pengaturan::get('unit_per_kenaikan', 1));
 
         // Transaksi yang terkunci di tiap tahap
-        $perTahap = TransaksiPenjualan::aktif()->selectRaw('harga_per_m2, COUNT(*) n')->groupBy('harga_per_m2')->pluck('n', 'harga_per_m2')
+        $perTahap = TransaksiPenjualan::berjalan()->selectRaw('harga_per_m2, COUNT(*) n')->groupBy('harga_per_m2')->pluck('n', 'harga_per_m2')
             ->mapWithKeys(fn ($n, $h) => [(int) $h => $n]);
 
         return view('skema-harga.index', [

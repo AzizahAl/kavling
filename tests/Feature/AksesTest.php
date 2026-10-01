@@ -98,6 +98,8 @@ class AksesTest extends TestCase
 
         // Closing hanya dengan transaksi miliknya
         $this->post(route('lead.closing', $baru), ['tanggal' => today()->toDateString(), 'transaksi_id' => $tDodi->id])->assertForbidden();
+        $this->post(route('lead.closing', $baru), ['tanggal' => today()->toDateString(), 'transaksi_id' => $tSari->id])->assertSessionHasErrors('transaksi_id'); // masih menunggu pembayaran
+        $svc->catatPembayaran($tSari, ['tanggal' => '2026-09-01', 'jenis' => 'reservasi', 'nominal' => 500000, 'metode' => 'transfer']);
         $this->post(route('lead.closing', $baru), ['tanggal' => today()->toDateString(), 'transaksi_id' => $tSari->id])->assertSessionHasNoErrors();
         $this->assertSame('closing', $baru->fresh()->tahap);
     }

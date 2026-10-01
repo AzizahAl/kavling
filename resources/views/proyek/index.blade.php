@@ -2,10 +2,10 @@
 @section('title', 'Pengaturan Proyek')
 
 @php
-    $kosongPenting = collect(['refund_dp_persen', 'refund_angsuran_persen', 'komisi_default_persen', 'target_kewajiban_tanah', 'alamat_proyek', 'nama_pemilik_lahan', 'nama_pengelola', 'kota_dokumen'])
+    $kosongPenting = collect(['alamat_proyek', 'nama_pemilik_lahan', 'nama_pengelola', 'kota_dokumen'])
         ->filter(fn ($k) => $nilai[$k] === null || $nilai[$k] === '')
         ->map(fn ($k) => $definisi[$k][1]);
-    $ikonGrup = ['proyek' => 'building', 'harga' => 'tag', 'penjualan' => 'cart', 'alokasi' => 'cashflow', 'laba' => 'scale', 'penomoran' => 'document'];
+    $ikonGrup = ['proyek' => 'building', 'harga' => 'tag', 'penjualan' => 'cart', 'alokasi' => 'cashflow', 'laba' => 'scale', 'penomoran' => 'document', 'komisi' => 'users'];
     $alokasiAwal = collect(['tanah' => 'alokasi_tanah', 'legal' => 'alokasi_legal_infra', 'marketing' => 'alokasi_marketing', 'cadangan' => 'alokasi_cadangan', 'ops' => 'alokasi_operasional'])
         ->map(fn ($k) => (string) old($k, $nilai[$k]));
 @endphp
@@ -88,6 +88,9 @@
                                         @break
                                     @case('angka')
                                         <x-input :name="$kunci" type="text" inputmode="numeric" :value="$val" class="tabular-nums"/>
+                                        @break
+                                    @case('pilihan')
+                                        <x-select :name="$kunci" :options="\App\Services\Pengaturan::PILIHAN[$kunci] ?? []" :value="old($kunci, $val)"/>
                                         @break
                                     @case('desimal')
                                         <x-input :name="$kunci" type="text" inputmode="decimal" :value="$val" class="tabular-nums"/>

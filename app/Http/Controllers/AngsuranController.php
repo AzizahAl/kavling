@@ -11,7 +11,7 @@ class AngsuranController extends Controller
 {
     public function index(Request $request, AngsuranService $angsuran)
     {
-        $baris = TransaksiPenjualan::aktif()->where('status', '!=', 'lunas')
+        $baris = TransaksiPenjualan::berjalan()->where('status', '!=', 'lunas')
             ->with(['konsumen', 'kavling', 'agen', 'pembayarans', 'jadwalAngsurans'])
             ->when($request->filled('jenis'), fn ($q) => $q->where('jenis_pembayaran', $request->jenis))
             ->get()

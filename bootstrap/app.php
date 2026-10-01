@@ -12,6 +12,7 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias(['peran' => \App\Http\Middleware\Peran::class]);
+        $middleware->web(append: [\App\Http\Middleware\LepasKavlingKedaluwarsa::class]);
         $middleware->redirectGuestsTo(fn () => route('login'));
         $middleware->redirectUsersTo(fn () => route('beranda'));
     })

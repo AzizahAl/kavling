@@ -34,30 +34,54 @@ class DokumenTest extends TestCase
         ]);
     }
 
+    private function bayar(TransaksiPenjualan $t, string $jenis, float $nominal): void
+    {
+        app(TransaksiService::class)->catatPembayaran($t, ['tanggal' => '2026-06-01', 'jenis' => $jenis, 'nominal' => $nominal, 'metode' => 'transfer']);
+    }
+
+    public function test_spk_hanya_setelah_booking_terbayar(): void
+    {
+        $t = $this->transaksi();
+        $form = ['spk_status' => 'selesai', 'spk_tanggal' => '2026-06-02', 'ppjb_status' => 'belum', 'ajb_status' => 'belum'];
+
+        $this->assertNotNull($t->alasanSpkBelumBisa());
+        $this->put(route('legal.update', $t->checklist), $form)->assertSessionHasErrors('spk_status');
+        $this->get(route('dokumen.lihat', [$t, 'spk']))->assertRedirect(route('transaksi-penjualan.show', $t));
+        $this->get(route('transaksi-penjualan.show', $t))->assertOk()->assertSee('SPK dibuat setelah booking fee terbayar.');
+
+        $this->bayar($t, 'reservasi', 500000);
+        $this->put(route('legal.update', $t->checklist), $form)->assertSessionHasErrors('spk_status');
+
+        $this->bayar($t, 'booking', 2000000);
+        $this->assertNull($t->fresh()->alasanSpkBelumBisa());
+        $this->put(route('legal.update', $t->checklist), $form)->assertSessionHasNoErrors();
+        $this->get(route('dokumen.lihat', [$t, 'spk']))->assertOk();
+        $this->assertTrue(\App\Models\StatusRiwayat::where('transaksi_id', $t->id)->where('jenis', 'dokumen')->where('item', 'spk')->where('ke', 'selesai')->exists());
+    }
+
     public function test_ppjb_selesai_membuat_kavling_terjual_lewat_checklist(): void
     {
         $t = $this->transaksi();
-        $this->put(route('legal.update', $t->checklist), [
-            'reservasi_status' => 'selesai', 'reservasi_tanggal' => '2026-06-01',
-            'spk_status' => 'selesai', 'spk_tanggal' => '2026-06-02',
-            'ppjb_status' => 'selesai', 'ppjb_tanggal' => null,
-            'ajb_status' => 'belum',
-        ])->assertSessionHasErrors('ppjb_tanggal');
+        $this->bayar($t, 'reservasi', 500000);
+        $this->bayar($t, 'booking', 2000000);
+        $form = ['spk_status' => 'selesai', 'spk_tanggal' => '2026-06-02', 'ppjb_status' => 'selesai', 'ppjb_tanggal' => null, 'ajb_status' => 'belum'];
+        $this->put(route('legal.update', $t->checklist), $form)->assertSessionHasErrors('ppjb_tanggal');
 
-        $this->put(route('legal.update', $t->checklist), [
-            'reservasi_status' => 'selesai', 'reservasi_tanggal' => '2026-06-01',
-            'spk_status' => 'selesai', 'spk_tanggal' => '2026-06-02',
-            'ppjb_status' => 'selesai', 'ppjb_tanggal' => '2026-06-10',
-            'ajb_status' => 'belum',
-        ])->assertSessionHasNoErrors();
+        $this->put(route('legal.update', $t->checklist), ['ppjb_tanggal' => '2026-06-10'] + $form)->assertSessionHasNoErrors();
 
-        $this->assertSame('terjual', $t->kavling->fresh()->status);
+        $this->assertSame('terjual', $t->kavling->fresh()->status, 'Penentu terjual bawaan = PPJB');
         $this->assertSame(1, app(HargaService::class)->jumlahTerjual());
+
+        // Penentu diganti ke "lunas": PPJB tanpa lunas → kembali Booking
+        Pengaturan::simpan(['terjual_saat' => 'lunas']);
+        app(TransaksiService::class)->sinkronSemuaKavling();
+        $this->assertSame('booking', $t->kavling->fresh()->status);
     }
 
     public function test_dokumen_spk_ppjb_dan_halaman_terbuka(): void
     {
         $t = $this->transaksi();
+        $this->bayar($t, 'booking', 2000000);
         $this->get(route('dokumen.lihat', [$t, 'spk']))->assertOk()->assertSee('SURAT PEMESANAN KAVLING')->assertSee('TR/SPK/2026/0001')->assertSee('Rp49.000.000');
         $this->get(route('dokumen.lihat', [$t, 'ppjb']))->assertOk()->assertSee('TR/PPJB/2026/0001')->assertSee('Jadwal angsuran');
         $this->get(route('dokumen.unduh', [$t, 'ppjb']))->assertOk()->assertHeader('content-type', 'application/pdf');

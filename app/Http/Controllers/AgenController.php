@@ -7,6 +7,7 @@ use App\Models\KomisiPembayaran;
 use App\Services\KomisiService;
 use App\Services\LeadService;
 use App\Services\Penomoran;
+use App\Services\Pengaturan;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -69,6 +70,7 @@ class AgenController extends Controller
             ],
             'leads'    => $agen->leads()->latest('tanggal_lead')->latest('id')->limit(10)->get(),
             'bulanan'  => $this->lead->rekapPerAgen(now()->startOfMonth(), now()->endOfMonth(), $agen->id)->first(),
+            'hakSaat'  => 'Menjadi hak saat ' . mb_strtolower(Pengaturan::PILIHAN['komisi_hak_saat'][Pengaturan::get('komisi_hak_saat', 'booking')] ?? 'booking terbayar') . '.',
         ]);
     }
 
@@ -131,10 +133,10 @@ class AgenController extends Controller
             'nama_agen'     => ['required', 'string', 'max:255'],
             'no_hp'         => ['nullable', 'string', 'max:20'],
             'email'         => ['nullable', 'email', 'max:255'],
-            'komisi_persen' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'komisi_nominal' => ['nullable', 'numeric', 'min:0'],
             'aktif'         => ['nullable', 'boolean'],
             'catatan'       => ['nullable', 'string', 'max:1000'],
-        ], [], ['nama_agen' => 'nama agen']);
+        ], [], ['nama_agen' => 'nama agen', 'komisi_nominal' => 'komisi per transaksi']);
         $data['aktif'] = $request->boolean('aktif', $agen?->aktif ?? true);
 
         return $data;

@@ -3,8 +3,6 @@
     $ppjb = $jenis === 'PPJB';
     $judul = $ppjb ? 'PERJANJIAN PENGIKATAN JUAL BELI (PPJB)' : 'SURAT PEMESANAN KAVLING (SPK)';
     $kosong = '………………………………';
-    $refundDp = \App\Services\Pengaturan::get('refund_dp_persen');
-    $refundAng = \App\Services\Pengaturan::get('refund_angsuran_persen');
 @endphp
 <!DOCTYPE html>
 <html lang="id">
@@ -121,8 +119,8 @@
 
     <h2>Pasal 4<br>Pembatalan</h2>
     <ol>
-        <li>Apabila PIHAK KEDUA membatalkan, biaya reservasi dikembalikan sebesar {{ rupiah(\App\Services\Pengaturan::get('refund_reservasi')) }} dan booking fee dikembalikan sebesar {{ rupiah(\App\Services\Pengaturan::get('refund_booking')) }}.</li>
-        <li>Pengembalian DP: {{ $refundDp === null ? $kosong : persen($refundDp, false, 2) . ' dari DP yang telah dibayar' }}. Pengembalian angsuran: {{ $refundAng === null ? $kosong : persen($refundAng, false, 2) . ' dari angsuran yang telah dibayar' }}.</li>
+        <li>Apabila PIHAK KEDUA membatalkan, biaya reservasi dikembalikan seluruhnya, sedangkan booking fee dikembalikan setelah dipotong {{ rupiah(\App\Services\Pengaturan::get('potongan_booking', 0)) }}.</li>
+        <li>Pengembalian DP dan angsuran yang telah dibayar dikurangi potongan pembatalan yang besarnya ditetapkan PIHAK PERTAMA sesuai ketentuan yang berlaku, dan rinciannya disampaikan secara tertulis kepada PIHAK KEDUA.</li>
         <li>Setelah pembatalan, kavling kembali menjadi milik PIHAK PERTAMA dan dapat dijual kepada pihak lain.</li>
     </ol>
 

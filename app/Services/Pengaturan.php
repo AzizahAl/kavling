@@ -31,18 +31,21 @@ class Pengaturan
         'kenaikan_harga_m2'    => ['harga', 'Kenaikan Harga / m²', 'rupiah', 50000, 'Naik setiap kelipatan unit terjual'],
         'unit_per_kenaikan'    => ['harga', 'Naik Setiap (unit terjual)', 'angka', 3, 'Harga naik tiap kelipatan ini'],
         'jumlah_tahap'         => ['harga', 'Jumlah Tahap Harga', 'angka', 5, 'Tahap 5 = Rp700.000/m²'],
+        'terjual_saat'         => ['harga', 'Kavling Dihitung Terjual Saat', 'pilihan', 'ppjb', 'Untuk kenaikan tahap harga. Sementara, perlu konfirmasi'],
 
         // --- Reservasi, booking, DP, tenor ---
         'biaya_reservasi'      => ['penjualan', 'Biaya Reservasi', 'rupiah', 500000, 'Di luar harga kavling'],
-        'refund_reservasi'     => ['penjualan', 'Refund Reservasi bila Batal', 'rupiah', 500000, 'Dikembalikan penuh'],
         'biaya_booking'        => ['penjualan', 'Booking Fee', 'rupiah', 2000000, 'Di luar harga kavling'],
-        'refund_booking'       => ['penjualan', 'Refund Booking bila Batal', 'rupiah', 1000000, 'Sisa Rp1 jt tidak dikembalikan'],
+        'potongan_booking'     => ['penjualan', 'Potongan Booking bila Batal', 'rupiah', 1000000, 'Untuk komisi & marketing, masuk pos Marketing. Reservasi dikembalikan penuh'],
         'dp_minimal_persen'    => ['penjualan', 'DP Minimal (%)', 'persen', 0, '0 = boleh tanpa DP'],
         'dp_anjuran_persen'    => ['penjualan', 'DP Anjuran (%)', 'persen', 15, 'Terisi otomatis di form transaksi, bisa diubah'],
         'tenor_maksimal'       => ['penjualan', 'Tenor Maksimal (bulan)', 'angka', 18, 'Batas lama angsuran'],
-        'refund_dp_persen'     => ['penjualan', 'Refund DP bila Batal (%)', 'persen', null, 'Persen DP yang dikembalikan. 0 = hangus, 100 = kembali penuh'],
-        'refund_angsuran_persen' => ['penjualan', 'Refund Angsuran bila Batal (%)', 'persen', null, 'Persen angsuran/pelunasan yang dikembalikan'],
-        'komisi_default_persen' => ['penjualan', 'Komisi Agen Bawaan (%)', 'persen', null, 'Dipakai bila agen belum punya persen sendiri'],
+        'batas_tahan_jam'      => ['penjualan', 'Tahan Kavling Menunggu Reservasi (jam)', 'angka', 48, 'Lewat batas tanpa uang reservasi: transaksi batal, kavling tersedia lagi. Sementara, perlu konfirmasi'],
+
+        // --- Komisi agen (nominal tetap per transaksi) ---
+        'komisi_nominal'       => ['komisi', 'Komisi per Transaksi', 'rupiah', 1000000, 'Standar minimum. Bisa diganti per agen'],
+        'komisi_hak_saat'      => ['komisi', 'Komisi Menjadi Hak Saat', 'pilihan', 'booking', 'Sementara, perlu konfirmasi'],
+        'komisi_saat_batal'    => ['komisi', 'Komisi bila Transaksi Batal', 'pilihan', 'tetap', 'Sementara, perlu konfirmasi'],
 
         // --- Alokasi kas (persen dari setiap uang masuk) ---
         'alokasi_tanah'        => ['alokasi', 'Tanah / Kewajiban Pemilik Lahan (%)', 'persen', 50, 'Prioritas sampai tanah lunas'],
@@ -54,7 +57,6 @@ class Pengaturan
         // --- Laba ---
         'laba_pengelola_persen' => ['laba', 'Bagian Pengelola (%)', 'persen', 80, null],
         'laba_pemilik_persen'  => ['laba', 'Bagian Pemilik Lahan (%)', 'persen', 20, null],
-        'target_kewajiban_tanah' => ['laba', 'Total Kewajiban Tanah ke Pemilik Lahan', 'rupiah', null, 'Tanah dianggap lunas bila alokasi tanah mencapai angka ini'],
         'kategori_rab_legal_infra' => ['laba', 'Kategori RAB untuk Target Legal & Infrastruktur', 'daftar', 'Legalitas, Pematangan Lahan, Infrastruktur, Fasilitas', 'Pisahkan dengan koma'],
 
         // --- Penomoran ---
@@ -62,12 +64,23 @@ class Pengaturan
         'prefix_transaksi'     => ['penomoran', 'Awalan ID Transaksi', 'teks', 'TRX', 'TRX-2026-0001'],
         'prefix_pembayaran'    => ['penomoran', 'Awalan No. Kwitansi', 'teks', 'KWT', 'KWT-2026-0001'],
         'prefix_kavling'       => ['penomoran', 'Awalan Kode Kavling', 'teks', 'TR', 'TR-A01'],
+
+        // --- Dikelola di modul Kewajiban Tanah (tidak tampil di halaman Pengaturan) ---
+        'total_kewajiban_tanah' => ['tanah', 'Total Kesepakatan Kewajiban Tanah', 'rupiah', null, 'Kosong sampai hasil pengukuran resmi'],
+    ];
+
+    /** Opsi untuk pengaturan bertipe "pilihan". */
+    public const PILIHAN = [
+        'terjual_saat'      => ['ppjb' => 'PPJB ditandatangani', 'lunas' => 'Pembayaran lunas'],
+        'komisi_hak_saat'   => ['booking' => 'Booking terbayar', 'dp' => 'DP / angsuran mulai dibayar', 'ppjb' => 'PPJB ditandatangani', 'lunas' => 'Pembayaran lunas'],
+        'komisi_saat_batal' => ['tetap' => 'Tetap jadi hak agen', 'gugur' => 'Gugur'],
     ];
 
     public const GRUP = [
         'proyek'    => 'Identitas & Baseline Proyek',
         'harga'     => 'Skema Harga',
         'penjualan' => 'Reservasi, Booking, DP & Angsuran',
+        'komisi'    => 'Komisi Agen',
         'alokasi'   => 'Alokasi Kas per Uang Masuk',
         'laba'      => 'Pembagian Laba',
         'penomoran' => 'Format Penomoran',

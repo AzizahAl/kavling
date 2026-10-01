@@ -3,7 +3,7 @@
 
 @section('content')
 @php $admin = auth()->user()?->isAdmin(); @endphp
-<div x-data="{ a: @js(['id' => $agen->id, 'nama_agen' => old('nama_agen', $agen->nama_agen), 'no_hp' => $agen->no_hp, 'email' => $agen->email, 'komisi_persen' => $agen->komisi_persen, 'aktif' => $agen->aktif, 'catatan' => $agen->catatan]), aksiAgen: '{{ route('agen.update', $agen) }}' }">
+<div x-data="{ a: @js(['id' => $agen->id, 'nama_agen' => old('nama_agen', $agen->nama_agen), 'no_hp' => $agen->no_hp, 'email' => $agen->email, 'komisi_nominal' => old('komisi_nominal', $agen->komisi_nominal), 'aktif' => $agen->aktif, 'catatan' => $agen->catatan]), aksiAgen: '{{ route('agen.update', $agen) }}' }">
 
 <x-page-header :title="$agen->nama_agen" :subtitle="$agen->kode_agen . ($agen->no_hp ? ' · ' . $agen->no_hp : '') . ($agen->aktif ? '' : ' · Nonaktif')"
                :back="$admin ? route('agen.index') : null" :breadcrumbs="$admin ? ['Agen' => route('agen.index'), $agen->kode_agen => null] : []">
@@ -19,15 +19,14 @@
     <x-stat-card label="Lead / Prospek / Closing" :value="$angka['lead'] . ' / ' . $angka['prospek'] . ' / ' . $angka['closing']"
                  :hint="'Bulan ini ' . ($bulanan['lead'] ?? 0) . ' / ' . ($bulanan['prospek'] ?? 0) . ' / ' . ($bulanan['closing'] ?? 0)" icon="funnel"/>
     <x-stat-card label="Penjualan" :value="rupiah($angka['nilai_penjualan'])" :singkat="rupiah_singkat($angka['nilai_penjualan'])" :hint="$angka['transaksi'] . ' transaksi · ' . $angka['terjual'] . ' terjual'" icon="cart"/>
-    <x-stat-card label="Komisi Hak" :value="$angka['komisi_hak'] !== null ? rupiah($angka['komisi_hak']) : 'Persen belum diatur'"
-                 :singkat="$angka['komisi_hak'] !== null ? rupiah_singkat($angka['komisi_hak']) : '—'"
-                 :hint="$angka['persen'] !== null ? persen($angka['persen'], false, 2) . ' × harga kavling terjual' : null" tone="utama" icon="check-badge"/>
-    <x-stat-card label="Sisa Komisi" :value="$angka['sisa'] !== null ? rupiah($angka['sisa']) : '—'" :singkat="$angka['sisa'] !== null ? rupiah_singkat($angka['sisa']) : '—'" :hint="'Dibayar ' . rupiah($angka['dibayar'])" icon="wallet"/>
+    <x-stat-card label="Komisi Hak" :value="rupiah($angka['komisi_hak'])" :singkat="rupiah_singkat($angka['komisi_hak'])"
+                 :hint="rupiah($angka['nominal']) . ' per transaksi · potensi ' . rupiah($angka['komisi_potensi'])" tone="utama" icon="check-badge"/>
+    <x-stat-card label="Sisa Komisi" :value="rupiah($angka['sisa'])" :singkat="rupiah_singkat($angka['sisa'])" :hint="'Dibayar ' . rupiah($angka['dibayar'])" icon="wallet"/>
 </div>
 
 <div class="grid grid-cols-1 gap-5 xl:grid-cols-3">
     <div class="min-w-0 space-y-5 xl:col-span-2">
-        <x-card title="Komisi per Transaksi" subtitle="Menjadi hak saat PPJB ditandatangani." :padding="false">
+        <x-card title="Komisi per Transaksi" :subtitle="$hakSaat" :padding="false">
             @if ($rincian->isEmpty())
                 <x-empty-state title="Belum ada transaksi"/>
             @else
@@ -41,9 +40,9 @@
                                         <div class="text-xs text-slate-500">{{ $r->transaksi->kavling->kode_kavling }} · {{ tanggal($r->transaksi->tanggal) }}</div></td>
                                     <td>{{ $r->transaksi->konsumen->nama_lengkap }}</td>
                                     <td class="text-right tabular-nums">{{ rupiah($r->transaksi->nilai_jual) }}</td>
-                                    <td><x-badge :status="$r->transaksi->status"/></td>
+                                    <td><x-status-bayar :t="$r->transaksi"/></td>
                                     <td class="text-right tabular-nums">{{ $r->komisi !== null ? rupiah($r->komisi) : '—' }}</td>
-                                    <td>@if ($r->terjual)<x-badge status="selesai" label="Hak agen"/>@else<x-badge status="menunggu" label="Menunggu PPJB"/>@endif</td>
+                                    <td>@if ($r->terjual)<x-badge status="selesai" label="Hak agen"/>@elseif ($r->transaksi->isBatal())<x-badge status="batal" :label="$r->keterangan"/>@else<x-badge status="menunggu" :label="$r->keterangan"/>@endif</td>
                                 </tr>
                             @endforeach
                         </tbody>

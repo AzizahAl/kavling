@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Services\HargaService;
 use App\Services\Pengaturan;
+use App\Services\TransaksiService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Validator;
@@ -22,7 +23,7 @@ class ProyekController extends Controller
         ]);
     }
 
-    public function update(Request $request, HargaService $harga)
+    public function update(Request $request, HargaService $harga, TransaksiService $transaksi)
     {
         // Kolom desimal/persen boleh diketik dengan koma (17,34) → ubah ke titik sebelum divalidasi.
         // Sebelumnya kolom ini bertipe number sehingga browser membuang koma: 17,34 tersimpan 1734.
@@ -31,20 +32,25 @@ class ProyekController extends Controller
             ->mapWithKeys(fn ($k) => [$k => str_replace([' ', ','], ['', '.'], (string) $request->input($k))])->all());
 
         $aturan = [];
-        foreach (Pengaturan::DEFINISI as $kunci => [, , $tipe]) {
+        foreach (Pengaturan::DEFINISI as $kunci => [$grup, , $tipe]) {
+            if ($grup === 'tanah') {
+                continue; // dikelola di modul Kewajiban Tanah
+            }
             $aturan[$kunci] = match ($tipe) {
+                'pilihan'         => ['required', \Illuminate\Validation\Rule::in(array_keys(Pengaturan::PILIHAN[$kunci] ?? []))],
                 'rupiah', 'angka' => ['nullable', 'integer', 'min:0'],
                 'desimal'         => ['nullable', 'numeric', 'min:0'],
                 'persen'          => ['nullable', 'numeric', 'min:0', 'max:100'],
                 default           => ['nullable', 'string', 'max:255'],
             };
         }
-        foreach (['harga_awal_m2', 'unit_per_kenaikan', 'jumlah_tahap', 'jumlah_kavling', 'tenor_maksimal'] as $wajib) {
+        foreach (['harga_awal_m2', 'unit_per_kenaikan', 'jumlah_tahap', 'jumlah_kavling', 'tenor_maksimal', 'batas_tahan_jam', 'komisi_nominal'] as $wajib) {
             $aturan[$wajib][0] = 'required';
         }
         $aturan['unit_per_kenaikan'][] = 'min:1';
         $aturan['jumlah_tahap'][] = 'min:1';
         $aturan['tenor_maksimal'][] = 'min:1';
+        $aturan['batas_tahan_jam'][] = 'min:1';
         foreach (['prefix_konsumen', 'prefix_transaksi', 'prefix_pembayaran', 'prefix_kavling'] as $p) {
             $aturan[$p] = ['required', 'alpha_num', 'max:10'];
         }
@@ -67,16 +73,16 @@ class ProyekController extends Controller
             if ((float) ($data['dp_anjuran_persen'] ?? 0) < (float) ($data['dp_minimal_persen'] ?? 0)) {
                 $v->errors()->add('dp_anjuran_persen', 'DP anjuran tidak boleh lebih kecil dari DP minimal.');
             }
-            foreach (['reservasi', 'booking'] as $j) {
-                if ((int) ($data["refund_{$j}"] ?? 0) > (int) ($data["biaya_{$j}"] ?? 0)) {
-                    $v->errors()->add("refund_{$j}", 'Refund ' . $j . ' tidak boleh melebihi biayanya.');
-                }
+            if ((int) ($data['potongan_booking'] ?? 0) > (int) ($data['biaya_booking'] ?? 0)) {
+                $v->errors()->add('potongan_booking', 'Potongan booking tidak boleh melebihi booking fee.');
             }
         })->validate();
 
-        DB::transaction(function () use ($data, $harga) {
+        DB::transaction(function () use ($data, $harga, $transaksi) {
             Pengaturan::simpan($data);
             $harga->sinkronSkema();
+            // Penentu "terjual" bisa berubah → status semua kavling dihitung ulang
+            $transaksi->sinkronSemuaKavling();
         });
 
         return redirect()->route('proyek.index')->with('success', 'Pengaturan proyek berhasil disimpan. Tahap harga & harga kavling tersedia sudah diperbarui.');

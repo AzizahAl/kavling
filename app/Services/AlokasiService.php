@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\AlokasiKas;
+use App\Models\PembatalanTransaksi;
 use App\Models\KasTransaksi;
 use App\Models\Rab;
 use Illuminate\Support\Collection;
@@ -13,10 +14,8 @@ use Illuminate\Support\Facades\DB;
  * setiap uang masuk dari konsumen dibagi 50% tanah, 25% legal+infra, 10% marketing, 10% cadangan, 5% operasional
  * (persen dari Pengaturan pada saat uang diterima). Refund pembatalan mengurangi alokasi dengan persen yang sama.
  *
- * Laba = uang masuk dari konsumen − semua pengeluaran terealisasi.
- * Laba layak dibagi (pengelola : pemilik lahan) hanya bila:
- *  (a) tanah lunas: alokasi tanah ≥ total kewajiban tanah (Pengaturan), dan
- *  (b) legal & infrastruktur tercukupi: alokasi legal+infra ≥ total anggaran RAB kategori terkait.
+ * Pembatalan: lihat alokasikanPembatalan (reservasi dibalik, potongan booking ke Marketing).
+ * Kelayakan bagi laba: lihat kelayakanLaba (tanah lunas dari modul Kewajiban Tanah).
  */
 class AlokasiService
 {
@@ -85,6 +84,64 @@ class AlokasiService
         ]);
     }
 
+    /**
+     * Alokasi koreksi saat transaksi dibatalkan (menempel ke data pembatalan, bukan ke baris kas refund):
+     *  - reservasi & bagian booking/DP/angsuran yang dikembalikan: alokasi asalnya dibalik sesuai proporsi,
+     *  - potongan booking: alokasi umum booking dibalik, lalu potongan dicatat 100% ke pos Marketing,
+     *  - potongan DP/angsuran: tetap pada alokasi semula.
+     * Jumlah seluruh baris = − total yang dikembalikan, sehingga saldo pos selalu cocok dengan kas.
+     */
+    public function alokasikanPembatalan(PembatalanTransaksi $p): void
+    {
+        $p->alokasis()->delete();
+
+        // Alokasi asal per jenis pembayaran untuk transaksi ini
+        $asal = DB::table('alokasi_kas as a')
+            ->join('kas_transaksis as k', 'k.id', '=', 'a.kas_transaksi_id')
+            ->join('pembayarans as b', 'b.id', '=', 'k.pembayaran_id')
+            ->where('k.transaksi_id', $p->transaksi_id)->where('k.asal', 'pembayaran')
+            ->selectRaw("CASE WHEN b.jenis IN ('dp','angsuran','pelunasan') THEN 'pokok' ELSE b.jenis END kelompok, a.pos, SUM(a.nominal) n")
+            ->groupBy('kelompok', 'a.pos')->get()
+            ->groupBy('kelompok')->map(fn ($g) => $g->pluck('n', 'pos')->map(fn ($n) => (float) $n));
+
+        $hasil = collect(array_keys(\App\Models\AlokasiKas::POS))->mapWithKeys(fn ($pos) => [$pos => 0.0]);
+        $balik = function (string $kelompok, float $porsi) use ($asal, &$hasil) {
+            $alok = $asal[$kelompok] ?? collect();
+            $total = $alok->sum();
+            if ($total <= 0 || $porsi <= 0) {
+                return;
+            }
+            foreach ($alok as $pos => $n) {
+                $hasil[$pos] -= $n * min(1, $porsi / $total);
+            }
+        };
+
+        $balik('reservasi', (float) $p->reservasi_refund);
+        $balik('booking', (float) $p->booking_dibayar);                 // balik seluruh alokasi umum booking…
+        $hasil['marketing'] += (float) $p->booking_potongan;             // …potongan masuk pos Marketing
+        $balik('pokok', (float) $p->pokok_refund);
+
+        // Pembulatan ke rupiah utuh; selisih dimasukkan ke pos terbesar agar total tepat
+        $bulat = $hasil->map(fn ($n) => round($n));
+        $selisih = -round((float) $p->total_refund) - $bulat->sum();
+        if ($selisih != 0) {
+            $pos = $bulat->map(fn ($n) => abs($n))->sortDesc()->keys()->first();
+            $bulat[$pos] += $selisih;
+        }
+
+        foreach ($bulat as $pos => $nominal) {
+            if ($nominal != 0) {
+                $p->alokasis()->create(['pos' => $pos, 'persen' => 0, 'nominal' => $nominal]);
+            }
+        }
+    }
+
+    /**
+     * Laba = uang masuk dari konsumen − semua pengeluaran terealisasi (termasuk pembayaran tanah & refund).
+     * Laba layak dibagi (pengelola : pemilik lahan) hanya bila:
+     *  (a) tanah lunas: total kesepakatan kewajiban tanah sudah ditetapkan DAN sisa kewajiban = 0,
+     *  (b) legal & infrastruktur tercukupi: alokasi legal+infra ≥ total anggaran RAB kategori terkait.
+     */
     public function kelayakanLaba(?Collection $pos = null): array
     {
         $pos ??= $this->posisiPos();
@@ -93,16 +150,14 @@ class AlokasiService
         $keluar = (float) KasTransaksi::where('jenis', 'keluar')->sum('nominal');
         $laba = $masuk - $keluar;
 
-        $targetTanah = Pengaturan::get('target_kewajiban_tanah');
-        $alokasiTanah = $pos['tanah']->alokasi;
+        $tanah = app(KewajibanTanahService::class)->ringkasan();
 
         $kategoriLegal = Pengaturan::get('kategori_rab_legal_infra', []);
         $targetLegal = (float) Rab::whereIn('kategori', $kategoriLegal)->sum('anggaran');
         $alokasiLegal = $pos['legal_infra']->alokasi;
 
-        $tanahLunas = $targetTanah !== null && $targetTanah > 0 && $alokasiTanah >= $targetTanah;
         $legalCukup = $targetLegal > 0 && $alokasiLegal >= $targetLegal;
-        $layak = $tanahLunas && $legalCukup && $laba > 0;
+        $layak = $tanah['lunas'] && $legalCukup && $laba > 0;
 
         $pPengelola = (float) Pengaturan::get('laba_pengelola_persen', 80);
         $pPemilik = (float) Pengaturan::get('laba_pemilik_persen', 20);
@@ -111,8 +166,9 @@ class AlokasiService
             'uang_masuk'     => $masuk,
             'pengeluaran'    => $keluar,
             'laba'           => $laba,
-            'tanah'          => ['target' => $targetTanah, 'alokasi' => $alokasiTanah, 'terpenuhi' => $tanahLunas,
-                                 'catatan' => $targetTanah === null ? 'Total kewajiban tanah belum diisi di Pengaturan Proyek.' : null],
+            'laba_tersedia'  => $layak ? $laba : 0,
+            'tanah'          => ['target' => $tanah['total'], 'alokasi' => $tanah['terbayar'], 'sisa' => $tanah['sisa'], 'terpenuhi' => $tanah['lunas'],
+                                 'catatan' => $tanah['total'] === null ? 'Total kesepakatan kewajiban tanah belum ditetapkan.' : null],
             'legal'          => ['target' => $targetLegal, 'alokasi' => $alokasiLegal, 'terpenuhi' => $legalCukup, 'kategori' => $kategoriLegal,
                                  'catatan' => $targetLegal <= 0 ? 'Anggaran RAB kategori ' . implode(', ', $kategoriLegal) . ' belum diisi.' : null],
             'layak'          => $layak,
@@ -123,12 +179,13 @@ class AlokasiService
         ];
     }
 
-    /** Rekap alokasi per transaksi penjualan (seperti tabel Excel CASHFLOW_ALOKASI). */
+    /** Rekap alokasi per transaksi penjualan (seperti tabel Excel CASHFLOW_ALOKASI), termasuk koreksi pembatalan. */
     public function perTransaksi(): Collection
     {
         return DB::table('alokasi_kas as a')
-            ->join('kas_transaksis as k', 'k.id', '=', 'a.kas_transaksi_id')
-            ->join('transaksi_penjualans as t', 't.id', '=', 'k.transaksi_id')
+            ->leftJoin('kas_transaksis as k', 'k.id', '=', 'a.kas_transaksi_id')
+            ->leftJoin('pembatalan_transaksis as pb', 'pb.id', '=', 'a.pembatalan_id')
+            ->join('transaksi_penjualans as t', 't.id', '=', DB::raw('COALESCE(k.transaksi_id, pb.transaksi_id)'))
             ->join('konsumens as c', 'c.id', '=', 't.konsumen_id')
             ->join('kavlings as v', 'v.id', '=', 't.kavling_id')
             ->selectRaw("t.id, t.kode_transaksi, t.status, c.nama_lengkap, v.kode_kavling,

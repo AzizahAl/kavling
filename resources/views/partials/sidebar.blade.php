@@ -33,6 +33,7 @@
             ['Kas Proyek', 'kas-proyek.index', 'wallet', 'kas-proyek.*'],
             ['RAB & Realisasi', 'rab.index', 'clipboard', 'rab.*'],
             ['Alokasi Cashflow', 'cashflow.index', 'cashflow', 'cashflow.*'],
+            ['Kewajiban Tanah', 'kewajiban-tanah.index', 'landmark', 'kewajiban-tanah.*'],
         ]],
         ['Dokumen', [
             ['Checklist Legal', 'legal.index', 'check-badge', 'legal.*'],

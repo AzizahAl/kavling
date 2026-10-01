@@ -30,7 +30,7 @@
                     <div class="min-w-0">
                         <div class="flex flex-wrap items-center gap-2">
                             <a href="{{ route('transaksi-penjualan.show', $t) }}" class="text-base font-semibold text-slate-900 hover:text-brand-700">Kavling {{ $t->kavling->kode_kavling }}</a>
-                            <x-badge :status="$t->status"/>
+                            <x-status-bayar :t="$t"/>
                         </div>
                         <p class="mt-0.5 text-sm text-slate-500">{{ $t->kode_transaksi }} · {{ tanggal($t->tanggal) }} · {{ $t->isAngsuran() ? "Angsuran {$t->tenor} bln" : 'Cash' }} · {{ $t->agen->nama_agen ?? 'Tanpa agen' }}</p>
                     </div>

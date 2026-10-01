@@ -31,7 +31,7 @@ Alpine.data('moneyInput', (initial = '') => ({
     init() {
         // Nilai bisa diisi dari luar: $dispatch('set-money', { name: 'nominal_dp', value: 7350000 })
         window.addEventListener('set-money', (e) => {
-            if (e.detail?.name === this.$el.dataset.name) {
+            if (e.detail?.name === this.$root.dataset.name) {
                 this.raw = e.detail.value === '' || e.detail.value === null ? '' : String(Math.round(Number(e.detail.value)));
             }
         });
@@ -41,7 +41,28 @@ Alpine.data('moneyInput', (initial = '') => ({
     onInput(e) {
         this.display = e.target.value;
         e.target.value = this.display;
-        this.$dispatch('money-changed', { name: this.$el.dataset.name, value: Number(this.raw || 0) });
+        // $root = pembungkus ber-data-name (bukan $el, yang di sini adalah <input>)
+        this.$dispatch('money-changed', { name: this.$root.dataset.name, value: Number(this.raw || 0) });
+    },
+}));
+
+// ---------- Hitung mundur batas tahan kavling ----------
+Alpine.data('hitungMundur', (batas) => ({
+    sisa: 0,
+    timer: null,
+    init() {
+        const akhir = new Date(batas).getTime();
+        const tick = () => { this.sisa = Math.max(0, Math.floor((akhir - Date.now()) / 1000)); if (!this.sisa) clearInterval(this.timer); };
+        tick();
+        this.timer = setInterval(tick, 1000);
+    },
+    destroy() { clearInterval(this.timer); },
+    get habis() { return this.sisa <= 0; },
+    get teks() {
+        if (this.habis) return 'habis';
+        const h = Math.floor(this.sisa / 86400), j = Math.floor(this.sisa % 86400 / 3600), m = Math.floor(this.sisa % 3600 / 60), d = this.sisa % 60;
+        const dua = (n) => String(n).padStart(2, '0');
+        return (h ? h + ' hari ' : '') + dua(j) + ':' + dua(m) + ':' + dua(d);
     },
 }));
 
