@@ -29,7 +29,7 @@
                 <p class="text-xs text-slate-500">{{ $peran }}</p>
             </div>
             <x-menu-item :href="route('profil')" icon="user">Profil & Kata Sandi</x-menu-item>
-            <form method="POST" action="{{ route('logout') }}">
+            <form method="POST" action="{{ route('logout') }}" data-confirm="Anda perlu login lagi untuk masuk ke aplikasi." data-confirm-title="Keluar dari aplikasi?" data-confirm-ok="Ya, keluar">
                 @csrf
                 <x-menu-item type="submit" icon="logout" danger>Keluar</x-menu-item>
             </form>

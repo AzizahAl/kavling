@@ -29,6 +29,20 @@
                  :tone="$stats['saldo'] < 0 ? 'bahaya' : 'default'" icon="wallet" :href="route('kas-proyek.index')"/>
 </div>
 
+@php
+    // Terjual = sudah ada pembeli yang membayar (DP/angsuran, lunas, terjual)
+    $jumlahTerjual = ($status['dp'] ?? 0) + ($status['lunas'] ?? 0) + ($status['terjual'] ?? 0);
+    $persenDari = fn ($n) => $totalKavling > 0 ? angka($n / $totalKavling * 100) . '% dari total' : null;
+@endphp
+<div class="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+    <x-stat-card label="Total Kavling" :value="angka($totalKavling)" hint="Seluruh unit" icon="grid" :href="route('kavling.index')" class="col-span-2 sm:col-span-1"/>
+    <x-stat-card label="Tersedia" :value="angka($status['tersedia'] ?? 0)" :hint="$persenDari($status['tersedia'] ?? 0)" icon="check-circle" :href="route('kavling.index', ['status' => 'tersedia'])"/>
+    <x-stat-card label="Reservasi" :value="angka($status['reservasi'] ?? 0)" :hint="$persenDari($status['reservasi'] ?? 0)" icon="clock" :href="route('kavling.index', ['status' => 'reservasi'])"/>
+    <x-stat-card label="Booking" :value="angka($status['booking'] ?? 0)" :hint="$persenDari($status['booking'] ?? 0)" icon="clipboard" :href="route('kavling.index', ['status' => 'booking'])"/>
+    <x-stat-card label="Terjual" :value="angka($jumlahTerjual)" icon="check-badge" :href="route('kavling.index')"
+                 :hint="'DP ' . ($status['dp'] ?? 0) . ' · Lunas ' . ($status['lunas'] ?? 0) . ' · Terjual ' . ($status['terjual'] ?? 0)"/>
+</div>
+
 <div class="mb-5 grid grid-cols-1 gap-5 xl:grid-cols-3">
     <x-card title="Status Kavling" :subtitle="$totalKavling . ' kavling'">
         <x-slot:actions><a href="{{ route('kavling.index') }}" class="tautan text-sm">Lihat</a></x-slot:actions>
