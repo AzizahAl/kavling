@@ -6,6 +6,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CashflowController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DokumenController;
+use App\Http\Controllers\FormulirController;
 use App\Http\Controllers\KasProyekController;
 use App\Http\Controllers\KavlingController;
 use App\Http\Controllers\KewajibanTanahController;
@@ -44,6 +45,11 @@ Route::middleware('auth')->group(function () {
             Route::post('/{lead}/closing', 'closing')->name('closing');
             Route::post('/{lead}/mundur', 'mundur')->name('mundur');
         });
+
+        // Formulir kosong & Marketing Toolkit
+        Route::get('/formulir', [FormulirController::class, 'index'])->name('formulir.index');
+        Route::get('/formulir/{jenis}', [FormulirController::class, 'lihat'])->name('formulir.lihat');
+        Route::get('/formulir/{jenis}/unduh', [FormulirController::class, 'unduh'])->name('formulir.unduh');
 
         Route::get('/data-agen/{agen}', [AgenController::class, 'show'])->whereNumber('agen')->name('agen.show');
         Route::get('/transaksi-penjualan/{transaksi}', [TransaksiPenjualanController::class, 'show'])->whereNumber('transaksi')->name('transaksi-penjualan.show');

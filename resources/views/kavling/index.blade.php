@@ -2,9 +2,9 @@
 @section('title', 'Kavling')
 
 @php
-    $kosong = ['id' => null, 'blok' => '', 'nomor' => '', 'tipe' => 'Prima', 'ukuran' => '', 'luas' => '', 'catatan' => '', 'terkunci' => false];
+    $kosong = ['id' => null, 'blok' => '', 'nomor' => '', 'tipe' => 'Prima', 'ukuran' => '', 'luas' => '', 'catatan' => '', 'batas_utara' => '', 'batas_selatan' => '', 'batas_timur' => '', 'batas_barat' => '', 'terkunci' => false];
     $awal = old('_form') === 'kavling'
-        ? ['id' => old('_id'), 'blok' => old('blok'), 'nomor' => old('nomor'), 'tipe' => old('tipe'), 'ukuran' => old('ukuran'), 'luas' => old('luas'), 'catatan' => old('catatan'), 'terkunci' => (bool) old('_terkunci')]
+        ? ['id' => old('_id'), 'blok' => old('blok'), 'nomor' => old('nomor'), 'tipe' => old('tipe'), 'ukuran' => old('ukuran'), 'luas' => old('luas'), 'catatan' => old('catatan'), 'batas_utara' => old('batas_utara'), 'batas_selatan' => old('batas_selatan'), 'batas_timur' => old('batas_timur'), 'batas_barat' => old('batas_barat'), 'terkunci' => (bool) old('_terkunci')]
         : $kosong;
     $labelStatus = fn ($s) => \App\Models\Kavling::LABEL_STATUS[$s] ?? $s;
 @endphp
@@ -58,7 +58,7 @@
                                 $t = $k->transaksiAktif;
                                 $hargaM2 = $t ? $t->harga_per_m2 : $k->harga_per_m2;
                                 $hargaJual = $t ? $t->nilai_jual : $k->harga_jual;
-                                $dataForm = ['id' => $k->id, 'blok' => $k->blok, 'nomor' => (int) substr($k->no, strlen($k->blok)), 'tipe' => $k->tipe, 'ukuran' => $k->ukuran, 'luas' => $k->luas ? (float) $k->luas : '', 'catatan' => $k->catatan, 'terkunci' => (bool) $t];
+                                $dataForm = ['id' => $k->id, 'blok' => $k->blok, 'nomor' => (int) substr($k->no, strlen($k->blok)), 'tipe' => $k->tipe, 'ukuran' => $k->ukuran, 'luas' => $k->luas ? (float) $k->luas : '', 'catatan' => $k->catatan, 'batas_utara' => $k->batas_utara, 'batas_selatan' => $k->batas_selatan, 'batas_timur' => $k->batas_timur, 'batas_barat' => $k->batas_barat, 'terkunci' => (bool) $t];
                             @endphp
                             <tr>
                                 <td><a href="{{ route('kavling.show', $k) }}" class="tautan">{{ $k->kode_kavling }}</a></td>
@@ -99,7 +99,7 @@
                     @php
                         $t = $k->transaksiAktif;
                         $hargaJual = $t ? $t->nilai_jual : $k->harga_jual;
-                        $dataForm = ['id' => $k->id, 'blok' => $k->blok, 'nomor' => (int) substr($k->no, strlen($k->blok)), 'tipe' => $k->tipe, 'ukuran' => $k->ukuran, 'luas' => $k->luas ? (float) $k->luas : '', 'catatan' => $k->catatan, 'terkunci' => (bool) $t];
+                        $dataForm = ['id' => $k->id, 'blok' => $k->blok, 'nomor' => (int) substr($k->no, strlen($k->blok)), 'tipe' => $k->tipe, 'ukuran' => $k->ukuran, 'luas' => $k->luas ? (float) $k->luas : '', 'catatan' => $k->catatan, 'batas_utara' => $k->batas_utara, 'batas_selatan' => $k->batas_selatan, 'batas_timur' => $k->batas_timur, 'batas_barat' => $k->batas_barat, 'terkunci' => (bool) $t];
                     @endphp
                     <li class="flex items-start gap-3 px-4 py-3.5">
                         <a href="{{ route('kavling.show', $k) }}" class="min-w-0 flex-1">
@@ -161,6 +161,15 @@
                     <div class="flex justify-between"><dt class="text-slate-500">Harga/m²</dt><dd class="font-medium tabular-nums" x-text="rupiah(harga)"></dd></div>
                     <div class="flex justify-between"><dt class="text-slate-500">Estimasi harga jual</dt><dd class="font-semibold text-slate-900 tabular-nums" x-text="estimasi ? rupiah(estimasi) : '—'"></dd></div>
                 </dl>
+                <fieldset class="space-y-2">
+                    <legend class="text-sm font-medium text-slate-700">Batas-batas <span class="font-normal text-slate-500">· dicetak di Lampiran A PPJB</span></legend>
+                    <div class="grid gap-3 sm:grid-cols-2">
+                        <x-field label="Utara" name="batas_utara"><x-input name="batas_utara" x-model="form.batas_utara"/></x-field>
+                        <x-field label="Selatan" name="batas_selatan"><x-input name="batas_selatan" x-model="form.batas_selatan"/></x-field>
+                        <x-field label="Timur" name="batas_timur"><x-input name="batas_timur" x-model="form.batas_timur"/></x-field>
+                        <x-field label="Barat" name="batas_barat"><x-input name="batas_barat" x-model="form.batas_barat"/></x-field>
+                    </div>
+                </fieldset>
                 <x-field label="Catatan" name="catatan">
                     <x-textarea name="catatan" rows="2" x-model="form.catatan"/>
                 </x-field>

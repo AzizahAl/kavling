@@ -8,6 +8,7 @@ use App\Models\TransaksiPenjualan;
 use App\Services\DokumenService;
 use App\Services\RiwayatService;
 use App\Services\TransaksiService;
+use App\Support\Formulir;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -64,12 +65,18 @@ class DokumenController extends Controller
         return back()->with('success', $pesan);
     }
 
+    /** Formulir resmi terisi dari transaksi: reservasi, booking, spk, ppjb. */
     public function lihat(TransaksiPenjualan $transaksi, string $jenis)
     {
         if ($r = $this->tolakSpk($transaksi, $jenis)) {
             return $r;
         }
-        return view('dokumen.perjanjian', $this->dok->dataPerjanjian($transaksi, $this->jenis($jenis)) + ['pdf' => false]);
+
+        return view('formulir.cetak', $this->dataCetak($transaksi, $jenis) + [
+            'pdf'     => false,
+            'kembali' => route('transaksi-penjualan.show', $transaksi),
+            'unduh'   => route('dokumen.unduh', [$transaksi, $jenis]),
+        ]);
     }
 
     public function unduh(TransaksiPenjualan $transaksi, string $jenis)
@@ -77,10 +84,20 @@ class DokumenController extends Controller
         if ($r = $this->tolakSpk($transaksi, $jenis)) {
             return $r;
         }
-        $data = $this->dok->dataPerjanjian($transaksi, $this->jenis($jenis));
+        $data = $this->dataCetak($transaksi, $jenis);
+        $nama = strtoupper($jenis) . '-' . $transaksi->kode_transaksi . '-' . str($transaksi->konsumen->nama_lengkap)->slug();
 
-        return Pdf::loadView('dokumen.perjanjian', $data + ['pdf' => true])->setPaper('a4', 'portrait')
-            ->download($data['jenis'] . '-' . str_replace('/', '-', $data['nomor']) . '-' . str($transaksi->konsumen->nama_lengkap)->slug() . '.pdf');
+        return Pdf::loadView('formulir.cetak', $data + ['pdf' => true])->setPaper($data['kertas'], 'portrait')->download($nama . '.pdf');
+    }
+
+    private function dataCetak(TransaksiPenjualan $t, string $jenis): array
+    {
+        abort_unless(in_array($jenis, Formulir::TRANSAKSI, true), 404);
+        $isian = $this->dok->dataFormulir($t, $jenis);
+        $tata = Formulir::tata($jenis);
+        $tata['judul'] .= ' · ' . $t->konsumen->nama_lengkap;
+
+        return $tata + ['d' => $isian['d'], 'peringatan' => $isian['peringatan'], 'isi' => true];
     }
 
     /** SPK hanya untuk transaksi yang booking-nya sudah terbayar. */
@@ -91,12 +108,5 @@ class DokumenController extends Controller
         }
 
         return null;
-    }
-
-    private function jenis(string $jenis): string
-    {
-        abort_unless(in_array($jenis, ['spk', 'ppjb']), 404);
-
-        return strtoupper($jenis);
     }
 }

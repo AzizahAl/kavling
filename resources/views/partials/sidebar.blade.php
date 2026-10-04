@@ -9,6 +9,7 @@
         ['Marketing', [
             ['Lead Harian', 'lead.index', 'funnel', 'lead.index'],
             ['Rekap Lead', 'lead.rekap', 'chart', 'lead.rekap'],
+            ['Formulir & Toolkit', 'formulir.index', 'printer', 'formulir.*'],
         ]],
     ] : [
         [null, [
@@ -23,6 +24,7 @@
         ]],
         ['Marketing', [
             ['Lead Harian', 'lead.index', 'funnel', 'lead.*'],
+            ['Formulir & Toolkit', 'formulir.index', 'printer', 'formulir.*'],
         ]],
         ['Penjualan', [
             ['Transaksi', 'transaksi-penjualan.index', 'cart', ['transaksi-penjualan.*', 'pembayaran.*', 'dokumen.*']],
@@ -90,7 +92,7 @@
     </nav>
 
     @if ($pengguna)
-        <form method="POST" action="{{ route('logout') }}" class="shrink-0 border-t border-white/10 p-3">
+        <form method="POST" action="{{ route('logout') }}" data-confirm="Anda perlu login lagi untuk masuk ke aplikasi." data-confirm-title="Keluar dari aplikasi?" data-confirm-ok="Ya, keluar" class="shrink-0 border-t border-white/10 p-3">
             @csrf
             <button type="submit" class="flex h-10 w-full items-center gap-3 rounded-lg px-3 text-sm text-brand-50/85 transition-colors hover:bg-white/10 hover:text-white">
                 <x-icon name="logout" class="size-[18px] opacity-80"/> Keluar

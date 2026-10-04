@@ -82,7 +82,10 @@ class TransaksiPenjualanController extends Controller
             'konsumen_id'    => [Rule::requiredIf(! $baru), 'nullable', 'exists:konsumens,id'],
             'bayar_jenis'    => ['nullable', Rule::in(array_keys(Pembayaran::JENIS))],
             'bayar_nominal'  => ['nullable', 'numeric', 'min:0'],
-            'bayar_metode'   => ['nullable', Rule::in(array_keys(Pembayaran::METODE))],
+            'bayar_metode'   => ['nullable', Rule::in(array_keys(Pembayaran::METODE_KONSUMEN))],
+            'bayar_nama_penyetor'     => ['nullable', 'string', 'max:100'],
+            'bayar_bank_penyetor'     => ['nullable', 'string', 'max:60'],
+            'bayar_rekening_penyetor' => ['nullable', 'string', 'max:40'],
             'bayar_no_bukti' => ['nullable', 'string', 'max:100'],
         ];
         if ($baru) {
@@ -108,6 +111,9 @@ class TransaksiPenjualanController extends Controller
                 'nominal'  => $data['bayar_nominal'],
                 'metode'   => $data['bayar_metode'] ?? 'transfer',
                 'no_bukti' => $data['bayar_no_bukti'] ?? null,
+                'nama_penyetor'     => $data['bayar_nama_penyetor'] ?? null,
+                'bank_penyetor'     => $data['bayar_bank_penyetor'] ?? null,
+                'rekening_penyetor' => $data['bayar_rekening_penyetor'] ?? null,
             ] : null;
 
             return $this->svc->buat($data, $bayar, auth()->id());

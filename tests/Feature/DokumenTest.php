@@ -82,12 +82,44 @@ class DokumenTest extends TestCase
     {
         $t = $this->transaksi();
         $this->bayar($t, 'booking', 2000000);
-        $this->get(route('dokumen.lihat', [$t, 'spk']))->assertOk()->assertSee('SURAT PEMESANAN KAVLING')->assertSee('TR/SPK/2026/0001')->assertSee('Rp49.000.000');
-        $this->get(route('dokumen.lihat', [$t, 'ppjb']))->assertOk()->assertSee('TR/PPJB/2026/0001')->assertSee('Jadwal angsuran');
+        $this->get(route('dokumen.lihat', [$t, 'spk']))->assertOk()->assertSee('SURAT PEMESANAN KAVLING (SPK)')->assertSee('TR/SPK/2026/0001')->assertSee('49.000.000');
+        $this->get(route('dokumen.lihat', [$t, 'ppjb']))->assertOk()->assertSee('TR/PPJB/2026/0001')->assertSee('JADWAL ANGSURAN')
+            ->assertSee('LAMPIRAN A')->assertSee('LAMPIRAN D')->assertDontSee('Form Pemeriksaan Dokumen Pembeli');
         $this->get(route('dokumen.unduh', [$t, 'ppjb']))->assertOk()->assertHeader('content-type', 'application/pdf');
         $this->get(route('dokumen.lihat', [$t, 'lain']))->assertNotFound();
+        $this->get(route('dokumen.unduh', [$t, 'reservasi']))->assertOk()->assertHeader('content-type', 'application/pdf');
         $this->get(route('legal.index'))->assertOk();
         $this->get(route('angsuran.index'))->assertOk()->assertSee($t->konsumen->nama_lengkap);
         $this->get(route('angsuran.index', ['status' => 'terlambat']))->assertOk()->assertSee($t->konsumen->nama_lengkap); // jatuh tempo Juli 2026 sudah lewat
+    }
+
+    public function test_form_reservasi_dan_booking_terisi_dari_transaksi(): void
+    {
+        $t = $this->transaksi();
+        app(TransaksiService::class)->catatPembayaran($t, [
+            'tanggal' => '2026-06-01', 'jenis' => 'reservasi', 'nominal' => 500000, 'metode' => 'qris',
+            'nama_penyetor' => 'Penyetor Uji', 'bank_penyetor' => 'BRI', 'rekening_penyetor' => '1234567890',
+        ]);
+
+        // Berlaku s/d = tanggal bayar reservasi + 14 hari
+        $this->get(route('dokumen.lihat', [$t, 'reservasi']))->assertOk()
+            ->assertSee('Form Reservasi / Pemesanan')->assertSee('TR/RSV/2026/0001')
+            ->assertSee('15 Juni 2026')->assertSee('Lima Ratus Ribu Rupiah')
+            ->assertSee('Penyetor Uji')->assertSee('1234567890')->assertSee('Syarat Dan Ketentuan');
+
+        $this->get(route('dokumen.lihat', [$t, 'booking']))->assertOk()
+            ->assertSee('FORM BOOKING')->assertSee('TR/BKG/2026/0001')->assertSee('Rp2.000.000')->assertSee('/bulan');
+    }
+
+    public function test_formulir_kosong_dan_toolkit_terbuka(): void
+    {
+        $this->get(route('formulir.index'))->assertOk()->assertSee('Marketing Toolkit');
+        foreach (array_keys(\App\Support\Formulir::DAFTAR) as $jenis) {
+            $this->get(route('formulir.lihat', $jenis))->assertOk();
+        }
+        $this->get(route('formulir.lihat', 'reservasi'))->assertSee('TR/RSV/20…/……');
+        $this->get(route('formulir.lihat', 'toolkit'))->assertSee('SALES CLOSING SHEET')->assertDontSee('>FORM RESERVASI<', false);
+        $this->get(route('formulir.unduh', 'ppjb'))->assertOk()->assertHeader('content-type', 'application/pdf');
+        $this->get(route('formulir.lihat', 'tidak-ada'))->assertNotFound();
     }
 }

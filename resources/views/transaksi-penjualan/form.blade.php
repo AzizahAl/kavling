@@ -169,12 +169,22 @@
                             <x-money name="bayar_nominal" :value="$awal['bayar'] ?: null"/>
                         </x-field>
                         <x-field label="Metode" name="bayar_metode">
-                            <x-select name="bayar_metode" :options="\App\Models\Pembayaran::METODE"/>
+                            <x-select name="bayar_metode" :options="\App\Models\Pembayaran::METODE_KONSUMEN"/>
                         </x-field>
                         <x-field label="No. Bukti" name="bayar_no_bukti">
                             <x-input name="bayar_no_bukti" placeholder="Opsional"/>
                         </x-field>
+                        <x-field label="A/N Penyetor/Transfer" name="bayar_nama_penyetor">
+                            <x-input name="bayar_nama_penyetor" placeholder="Opsional"/>
+                        </x-field>
+                        <x-field label="Nama Bank" name="bayar_bank_penyetor">
+                            <x-input name="bayar_bank_penyetor" placeholder="Opsional"/>
+                        </x-field>
+                        <x-field label="No Rek. Penyetor" name="bayar_rekening_penyetor">
+                            <x-input name="bayar_rekening_penyetor" inputmode="numeric" placeholder="Opsional"/>
+                        </x-field>
                     </div>
+                    <p class="mt-3 text-xs text-slate-500">Data penyetor dicetak di Form Reservasi.</p>
                 </x-card>
             @endunless
 

@@ -56,7 +56,10 @@ class PembayaranController extends Controller
             'tanggal'  => ['required', 'date', 'before_or_equal:today'],
             'jenis'    => ['required', Rule::in(array_keys(Pembayaran::JENIS))],
             'nominal'  => ['required', 'numeric', 'min:1'],
-            'metode'   => ['required', Rule::in(array_keys(Pembayaran::METODE))],
+            'metode'   => ['required', Rule::in(array_keys(Pembayaran::METODE_KONSUMEN))],
+            'nama_penyetor'     => ['nullable', 'string', 'max:100'],
+            'bank_penyetor'     => ['nullable', 'string', 'max:60'],
+            'rekening_penyetor' => ['nullable', 'string', 'max:40'],
             'no_bukti' => ['nullable', 'string', 'max:100'],
             'catatan'  => ['nullable', 'string', 'max:500'],
         ], [], ['tanggal' => 'tanggal bayar']);

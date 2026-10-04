@@ -14,10 +14,10 @@
     $admin = auth()->user()?->isAdmin();
     $bisaBayar = $admin && ! $t->isBatal() && $t->status !== 'lunas';
     $formBayarAwal = old('_form') === 'bayar'
-        ? ['id' => old('_id'), 'tanggal' => old('tanggal'), 'jenis' => old('jenis'), 'nominal' => old('nominal'), 'metode' => old('metode'), 'no_bukti' => old('no_bukti'), 'catatan' => old('catatan')]
-        : ['id' => null, 'tanggal' => now()->toDateString(), 'jenis' => $jenisAwal, 'nominal' => $saran[$jenisAwal], 'metode' => 'transfer', 'no_bukti' => '', 'catatan' => ''];
+        ? ['id' => old('_id'), 'tanggal' => old('tanggal'), 'jenis' => old('jenis'), 'nominal' => old('nominal'), 'metode' => old('metode'), 'nama_penyetor' => old('nama_penyetor'), 'bank_penyetor' => old('bank_penyetor'), 'rekening_penyetor' => old('rekening_penyetor'), 'no_bukti' => old('no_bukti'), 'catatan' => old('catatan')]
+        : ['id' => null, 'tanggal' => now()->toDateString(), 'jenis' => $jenisAwal, 'nominal' => $saran[$jenisAwal], 'metode' => 'transfer', 'nama_penyetor' => '', 'bank_penyetor' => '', 'rekening_penyetor' => '', 'no_bukti' => '', 'catatan' => ''];
     $opsiJenis = collect(\App\Models\Pembayaran::JENIS)->reject(fn ($l, $v) => $v === 'angsuran' && ! $t->isAngsuran());
-    $dataBayar = fn ($p) => ['id' => $p->id, 'tanggal' => $p->tanggal->toDateString(), 'jenis' => $p->jenis, 'nominal' => (float) $p->nominal, 'metode' => $p->metode, 'no_bukti' => $p->no_bukti, 'catatan' => $p->catatan];
+    $dataBayar = fn ($p) => ['id' => $p->id, 'tanggal' => $p->tanggal->toDateString(), 'jenis' => $p->jenis, 'nominal' => (float) $p->nominal, 'metode' => $p->metode, 'nama_penyetor' => $p->nama_penyetor, 'bank_penyetor' => $p->bank_penyetor, 'rekening_penyetor' => $p->rekening_penyetor, 'no_bukti' => $p->no_bukti, 'catatan' => $p->catatan];
 @endphp
 
 @section('content')
@@ -41,6 +41,9 @@
             <x-menu align="right" width="w-52">
                 <x-slot:trigger><x-button variant="secondary" icon="more" aria-haspopup="menu">Lainnya</x-button></x-slot:trigger>
                 <x-menu-item :href="route('transaksi-penjualan.edit', $t)" icon="pencil">Ubah transaksi</x-menu-item>
+                <div class="my-1 border-t border-slate-100"></div>
+                <x-menu-item :href="route('dokumen.lihat', [$t, 'reservasi'])" icon="document">Form Reservasi</x-menu-item>
+                <x-menu-item :href="route('dokumen.lihat', [$t, 'booking'])" icon="document">Form Booking</x-menu-item>
                 @if ($alasanSpk = $t->alasanSpkBelumBisa())
                     <div class="flex items-start gap-2 px-3 py-2 text-sm text-slate-400" title="{{ $alasanSpk }}">
                         <x-icon name="document" class="mt-0.5 size-4"/><span>SPK<span class="block text-xs">{{ $alasanSpk }}</span></span>
@@ -48,7 +51,7 @@
                 @else
                     <x-menu-item :href="route('dokumen.lihat', [$t, 'spk'])" icon="document">SPK</x-menu-item>
                 @endif
-                <x-menu-item :href="route('dokumen.lihat', [$t, 'ppjb'])" icon="document">PPJB</x-menu-item>
+                <x-menu-item :href="route('dokumen.lihat', [$t, 'ppjb'])" icon="document">PPJB + Lampiran</x-menu-item>
                 <div class="my-1 border-t border-slate-100"></div>
                 <x-menu-item icon="ban" danger x-on:click="$dispatch('open-modal', 'batal')">Batalkan transaksi</x-menu-item>
             </x-menu>
@@ -132,7 +135,7 @@
                                     <td class="font-medium text-slate-900">{{ $p->kode }}</td>
                                     <td>{{ tanggal($p->tanggal) }}</td>
                                     <td>{{ $p->label_jenis }} @if (in_array($p->jenis, ['reservasi', 'booking']))<span class="text-xs text-slate-400">di luar harga</span>@endif</td>
-                                    <td>{{ \App\Models\Pembayaran::METODE[$p->metode] }}@if ($p->no_bukti)<div class="text-xs text-slate-500">{{ $p->no_bukti }}</div>@endif</td>
+                                    <td>{{ $p->label_metode }}@if ($p->no_bukti)<div class="text-xs text-slate-500">{{ $p->no_bukti }}</div>@endif</td>
                                     <td class="text-right font-medium tabular-nums">{{ rupiah($p->nominal) }}</td>
                                     <td class="text-xs text-slate-500">{{ $p->kas->kode ?? '—' }}</td>
                                     <td>@include('transaksi-penjualan._aksi-bayar')</td>
@@ -147,7 +150,7 @@
                         <li class="flex items-center gap-3 px-4 py-3">
                             <div class="min-w-0 flex-1">
                                 <p class="text-sm font-medium text-slate-900">{{ $p->label_jenis }} <span class="font-semibold tabular-nums">{{ rupiah($p->nominal) }}</span></p>
-                                <p class="text-xs text-slate-500">{{ $p->kode }} · {{ tanggal($p->tanggal) }} · {{ \App\Models\Pembayaran::METODE[$p->metode] }}</p>
+                                <p class="text-xs text-slate-500">{{ $p->kode }} · {{ tanggal($p->tanggal) }} · {{ $p->label_metode }}</p>
                             </div>
                             @include('transaksi-penjualan._aksi-bayar')
                         </li>
@@ -308,8 +311,13 @@
                 </div>
                 <x-field label="Nominal" name="nominal" required><x-money name="nominal"/></x-field>
                 <div class="grid gap-4 sm:grid-cols-2">
-                    <x-field label="Metode" name="metode" required><x-select name="metode" :options="\App\Models\Pembayaran::METODE" x-model="f.metode"/></x-field>
+                    <x-field label="Metode" name="metode" required><x-select name="metode" :options="\App\Models\Pembayaran::METODE_KONSUMEN" x-model="f.metode"/></x-field>
                     <x-field label="No. Bukti" name="no_bukti"><x-input name="no_bukti" x-model="f.no_bukti"/></x-field>
+                </div>
+                <div class="grid gap-4 sm:grid-cols-3">
+                    <x-field label="A/N Penyetor" name="nama_penyetor"><x-input name="nama_penyetor" x-model="f.nama_penyetor"/></x-field>
+                    <x-field label="Nama Bank" name="bank_penyetor"><x-input name="bank_penyetor" x-model="f.bank_penyetor"/></x-field>
+                    <x-field label="No Rek. Penyetor" name="rekening_penyetor"><x-input name="rekening_penyetor" inputmode="numeric" x-model="f.rekening_penyetor"/></x-field>
                 </div>
                 <x-field label="Catatan" name="catatan"><x-input name="catatan" x-model="f.catatan"/></x-field>
             </x-modal-body>

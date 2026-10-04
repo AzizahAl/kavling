@@ -239,6 +239,9 @@ class TransaksiService
                 'jenis'       => $data['jenis'],
                 'nominal'     => $data['nominal'],
                 'metode'      => $data['metode'] ?? 'transfer',
+                'nama_penyetor'     => $data['nama_penyetor'] ?? null,
+                'bank_penyetor'     => $data['bank_penyetor'] ?? null,
+                'rekening_penyetor' => $data['rekening_penyetor'] ?? null,
                 'no_bukti'    => $data['no_bukti'] ?? null,
                 'catatan'     => $data['catatan'] ?? null,
                 'dibuat_oleh' => $userId,
@@ -258,7 +261,7 @@ class TransaksiService
             $this->pastikanAktif($t, bolehLunas: true);
             $this->validasiPembayaran($t, $data, $p);
 
-            $p->update(collect($data)->only(['tanggal', 'jenis', 'nominal', 'metode', 'no_bukti', 'catatan'])->all());
+            $p->update(collect($data)->only(['tanggal', 'jenis', 'nominal', 'metode', 'nama_penyetor', 'bank_penyetor', 'rekening_penyetor', 'no_bukti', 'catatan'])->all());
             $this->kas->catatPembayaran($p);
             $this->sinkron($t);
 

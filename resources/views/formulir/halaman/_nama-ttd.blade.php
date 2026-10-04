@@ -1,0 +1,1 @@
+<span @class(['ttd-nama', 'kosong' => blank($nama ?? null)])>{{ filled($nama ?? null) ? $nama : "\u{00A0}" }}</span>

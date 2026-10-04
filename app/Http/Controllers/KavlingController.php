@@ -87,6 +87,10 @@ class KavlingController extends Controller
             'ukuran'  => ['nullable', 'string', 'max:100'],
             'luas'    => ['nullable', 'numeric', 'min:1', 'max:100000'],
             'catatan' => ['nullable', 'string', 'max:500'],
+            'batas_utara'   => ['nullable', 'string', 'max:150'],
+            'batas_selatan' => ['nullable', 'string', 'max:150'],
+            'batas_timur'   => ['nullable', 'string', 'max:150'],
+            'batas_barat'   => ['nullable', 'string', 'max:150'],
         ], [], ['nomor' => 'nomor kavling']);
 
         $blok = strtoupper($v['blok']);
@@ -105,6 +109,10 @@ class KavlingController extends Controller
             'ukuran'       => $v['ukuran'] ?? null,
             'luas'         => $v['luas'] ?? null,
             'catatan'      => $v['catatan'] ?? null,
+            'batas_utara'   => $v['batas_utara'] ?? null,
+            'batas_selatan' => $v['batas_selatan'] ?? null,
+            'batas_timur'   => $v['batas_timur'] ?? null,
+            'batas_barat'   => $v['batas_barat'] ?? null,
         ];
     }
 }

@@ -17,9 +17,12 @@ class Pembayaran extends Model
     ];
 
     public const METODE = ['transfer' => 'Transfer', 'tunai' => 'Tunai'];
+    /** Metode pembayaran konsumen (Form Reservasi: Tunai / Transfer / Qris). METODE tetap dipakai komisi & kewajiban tanah. */
+    public const METODE_KONSUMEN = ['transfer' => 'Transfer', 'tunai' => 'Tunai', 'qris' => 'QRIS'];
 
     protected $fillable = [
-        'kode', 'transaksi_id', 'tanggal', 'jenis', 'nominal', 'metode', 'no_bukti', 'catatan', 'dibuat_oleh',
+        'kode', 'transaksi_id', 'tanggal', 'jenis', 'nominal', 'metode',
+        'nama_penyetor', 'bank_penyetor', 'rekening_penyetor', 'no_bukti', 'catatan', 'dibuat_oleh',
     ];
 
     protected $casts = [
@@ -35,6 +38,11 @@ class Pembayaran extends Model
     public function kas(): HasOne
     {
         return $this->hasOne(KasTransaksi::class, 'pembayaran_id');
+    }
+
+    public function getLabelMetodeAttribute(): string
+    {
+        return self::METODE_KONSUMEN[$this->metode] ?? $this->metode;
     }
 
     public function getLabelJenisAttribute(): string

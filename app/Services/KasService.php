@@ -34,7 +34,7 @@ class KasService
             'uraian'       => "{$p->label_jenis} {$t->kavling->kode_kavling} – {$t->konsumen->nama_lengkap}",
             'nominal'      => $p->nominal,
             'sumber'       => "{$p->kode} / {$t->kode_transaksi}",
-            'catatan'      => trim(Pembayaran::METODE[$p->metode] . ($p->no_bukti ? " · Bukti {$p->no_bukti}" : '')),
+            'catatan'      => trim($p->label_metode . ($p->no_bukti ? " · Bukti {$p->no_bukti}" : '')),
         ];
 
         $kas = KasTransaksi::firstWhere('pembayaran_id', $p->id);

@@ -24,6 +24,9 @@ class Pengaturan
         'status_legal_lahan'   => ['proyek', 'Status Legal Lahan', 'teks', 'Girik - proses AJB/TORA', 'Belum sertifikat'],
         'nama_pemilik_lahan'   => ['proyek', 'Nama Pemilik Lahan', 'teks', null, 'Pihak penerima 20% bagi laba'],
         'nama_pengelola'       => ['proyek', 'Nama Pengelola / Penjual', 'teks', null, 'Pihak penjual di SPK & PPJB'],
+        'nik_pengelola'        => ['proyek', 'NIK Pengelola / Penjual', 'teks', null, 'PIHAK PERTAMA di PPJB'],
+        'alamat_pengelola'     => ['proyek', 'Alamat Pengelola / Penjual', 'teks', null, 'PIHAK PERTAMA di PPJB'],
+        'hp_pengelola'         => ['proyek', 'No. HP Pengelola / Penjual', 'teks', null, 'PIHAK PERTAMA di PPJB'],
         'kota_dokumen'         => ['proyek', 'Kota Penandatanganan Dokumen', 'teks', null, 'Contoh: Garut'],
 
         // --- Harga ---
@@ -40,6 +43,7 @@ class Pengaturan
         'dp_minimal_persen'    => ['penjualan', 'DP Minimal (%)', 'persen', 0, '0 = boleh tanpa DP'],
         'dp_anjuran_persen'    => ['penjualan', 'DP Anjuran (%)', 'persen', 15, 'Terisi otomatis di form transaksi, bisa diubah'],
         'tenor_maksimal'       => ['penjualan', 'Tenor Maksimal (bulan)', 'angka', 18, 'Batas lama angsuran'],
+        'masa_reservasi_hari'  => ['penjualan', 'Masa Berlaku Reservasi (hari)', 'angka', 14, 'Sejak tanggal pembayaran reservasi. Tercetak sebagai "Berlaku s/d" di Form Reservasi'],
         'batas_tahan_jam'      => ['penjualan', 'Tahan Kavling Menunggu Reservasi (jam)', 'angka', 48, 'Lewat batas tanpa uang reservasi: transaksi batal, kavling tersedia lagi. Sementara, perlu konfirmasi'],
 
         // --- Komisi agen (nominal tetap per transaksi) ---

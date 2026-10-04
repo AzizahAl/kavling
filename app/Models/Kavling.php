@@ -20,6 +20,7 @@ class Kavling extends Model
     protected $fillable = [
         'kode_kavling', 'blok', 'no', 'tipe', 'skema_harga_id', 'ukuran',
         'luas', 'harga_per_m2', 'harga_jual', 'status', 'catatan',
+        'batas_utara', 'batas_selatan', 'batas_timur', 'batas_barat',
     ];
 
     protected $casts = [

@@ -76,6 +76,10 @@ class AksesTest extends TestCase
             $this->get($url)->assertForbidden();
         }
 
+        // Formulir kosong & Marketing Toolkit terbuka untuk agen; formulir terisi dari transaksi tetap khusus admin
+        $this->get(route('formulir.index'))->assertOk();
+        $this->get(route('formulir.lihat', 'toolkit'))->assertOk();
+
         // Lead: hanya miliknya yang tampil; input selalu atas namanya meski mengirim agen lain
         $this->get(route('lead.index'))->assertOk()->assertDontSee('Punya Dodi');
         $this->post(route('lead.store'), ['nama' => 'Calon Sari', 'sumber' => 'kenalan', 'tanggal_lead' => today()->toDateString(), 'agen_id' => $this->dodi->id])->assertSessionHasNoErrors();
