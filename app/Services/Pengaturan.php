@@ -29,12 +29,8 @@ class Pengaturan
         'hp_pengelola'         => ['proyek', 'No. HP Pengelola / Penjual', 'teks', null, 'PIHAK PERTAMA di PPJB'],
         'kota_dokumen'         => ['proyek', 'Kota Penandatanganan Dokumen', 'teks', null, 'Contoh: Garut'],
 
-        // --- Harga ---
-        'harga_awal_m2'        => ['harga', 'Harga Awal / m²', 'rupiah', 500000, 'Tahap 1'],
-        'kenaikan_harga_m2'    => ['harga', 'Kenaikan Harga / m²', 'rupiah', 50000, 'Naik setiap kelipatan unit terjual'],
-        'unit_per_kenaikan'    => ['harga', 'Naik Setiap (unit terjual)', 'angka', 3, 'Harga naik tiap kelipatan ini'],
-        'jumlah_tahap'         => ['harga', 'Jumlah Tahap Harga', 'angka', 5, 'Tahap 5 = Rp700.000/m²'],
-        'terjual_saat'         => ['harga', 'Kavling Dihitung Terjual Saat', 'pilihan', 'ppjb', 'Untuk kenaikan tahap harga. Sementara, perlu konfirmasi'],
+        // --- Harga (tahap harga dikelola di halaman Skema Harga) ---
+        'terjual_saat'         => ['harga', 'Kavling Dihitung Terjual Saat', 'pilihan', 'ppjb', 'Untuk status kavling Terjual. Sementara, perlu konfirmasi'],
 
         // --- Reservasi, booking, DP, tenor ---
         'biaya_reservasi'      => ['penjualan', 'Biaya Reservasi', 'rupiah', 500000, 'Di luar harga kavling'],
@@ -68,9 +64,6 @@ class Pengaturan
         'prefix_transaksi'     => ['penomoran', 'Awalan ID Transaksi', 'teks', 'TRX', 'TRX-2026-0001'],
         'prefix_pembayaran'    => ['penomoran', 'Awalan No. Kwitansi', 'teks', 'KWT', 'KWT-2026-0001'],
         'prefix_kavling'       => ['penomoran', 'Awalan Kode Kavling', 'teks', 'TR', 'TR-A01'],
-
-        // --- Dikelola di modul Kewajiban Tanah (tidak tampil di halaman Pengaturan) ---
-        'total_kewajiban_tanah' => ['tanah', 'Total Kesepakatan Kewajiban Tanah', 'rupiah', null, 'Kosong sampai hasil pengukuran resmi'],
     ];
 
     /** Opsi untuk pengaturan bertipe "pilihan". */

@@ -2,7 +2,8 @@
 @section('title', 'Kavling')
 
 @php
-    $kosong = ['id' => null, 'blok' => '', 'nomor' => '', 'tipe' => 'Prima', 'ukuran' => '', 'luas' => '', 'catatan' => '', 'batas_utara' => '', 'batas_selatan' => '', 'batas_timur' => '', 'batas_barat' => '', 'terkunci' => false];
+    $tipeAwal = array_key_first(\App\Models\Kavling::TIPE);
+    $kosong = ['id' => null, 'blok' => '', 'nomor' => '', 'tipe' => $tipeAwal, 'ukuran' => \App\Models\Kavling::TIPE[$tipeAwal]['ukuran'], 'luas' => \App\Models\Kavling::TIPE[$tipeAwal]['luas'] ?? '', 'catatan' => '', 'batas_utara' => '', 'batas_selatan' => '', 'batas_timur' => '', 'batas_barat' => '', 'terkunci' => false];
     $awal = old('_form') === 'kavling'
         ? ['id' => old('_id'), 'blok' => old('blok'), 'nomor' => old('nomor'), 'tipe' => old('tipe'), 'ukuran' => old('ukuran'), 'luas' => old('luas'), 'catatan' => old('catatan'), 'batas_utara' => old('batas_utara'), 'batas_selatan' => old('batas_selatan'), 'batas_timur' => old('batas_timur'), 'batas_barat' => old('batas_barat'), 'terkunci' => (bool) old('_terkunci')]
         : $kosong;
@@ -14,8 +15,15 @@
         form: @js($awal),
         kosong: @js($kosong),
         harga: {{ $hargaAktif }},
+        tipe: @js(\App\Models\Kavling::TIPE),
+        get luasTetap() { return this.tipe[this.form.tipe]?.luas != null },
+        pilihTipe() {
+            const t = this.tipe[this.form.tipe]; if (! t) return;
+            this.form.ukuran = t.ukuran;
+            if (! this.form.terkunci) this.form.luas = t.luas ?? '';
+        },
         get action() { return this.form.id ? '{{ url('master-kavling') }}/' + this.form.id : '{{ route('kavling.store') }}' },
-        get estimasi() { return (Number(String(this.form.luas).replace(',', '.')) || 0) * this.harga },
+        get estimasi() { return Math.round((Number(String(this.form.luas).replace(',', '.')) || 0) * this.harga) },
         tambah() { this.form = { ...this.kosong }; this.$dispatch('open-modal', 'kavling') },
         ubah(k) { this.form = { ...k }; this.$dispatch('open-modal', 'kavling') },
      }">
@@ -39,7 +47,7 @@
     <div class="card">
         <x-filter-bar placeholder="Cari kode kavling…">
             <x-select name="blok" :options="$bloks->mapWithKeys(fn ($b) => [$b => 'Blok ' . $b])" :value="request('blok')" placeholder="Semua blok"/>
-            <x-select name="tipe" :options="collect(\App\Models\Kavling::TIPE)->mapWithKeys(fn ($t) => [$t => $t])" :value="request('tipe')" placeholder="Semua tipe"/>
+            <x-select name="tipe" :options="\App\Models\Kavling::pilihanTipe()" :value="request('tipe')" placeholder="Semua tipe"/>
             <x-select name="status" :options="collect(\App\Models\Kavling::STATUS)->mapWithKeys(fn ($s) => [$s => $labelStatus($s)])" :value="request('status')" placeholder="Semua status"/>
         </x-filter-bar>
 
@@ -61,7 +69,7 @@
                                 $dataForm = ['id' => $k->id, 'blok' => $k->blok, 'nomor' => (int) substr($k->no, strlen($k->blok)), 'tipe' => $k->tipe, 'ukuran' => $k->ukuran, 'luas' => $k->luas ? (float) $k->luas : '', 'catatan' => $k->catatan, 'batas_utara' => $k->batas_utara, 'batas_selatan' => $k->batas_selatan, 'batas_timur' => $k->batas_timur, 'batas_barat' => $k->batas_barat, 'terkunci' => (bool) $t];
                             @endphp
                             <tr>
-                                <td><a href="{{ route('kavling.show', $k) }}" class="tautan">{{ $k->kode_kavling }}</a></td>
+                                <td class="font-medium text-slate-900">{{ $k->kode_kavling }}</td>
                                 <td>{{ $k->tipe }}<div class="text-xs text-slate-500">{{ $k->ukuran ?: '—' }}</div></td>
                                 <td class="text-right tabular-nums">{{ $k->luas ? angka($k->luas) . ' m²' : '—' }}</td>
                                 <td class="text-right tabular-nums">
@@ -82,7 +90,6 @@
                                 </td>
                                 <td>
                                     <div class="flex justify-end gap-0.5">
-                                        <x-icon-button icon="eye" label="Detail" :href="route('kavling.show', $k)"/>
                                         <x-icon-button icon="pencil" label="Ubah" x-on:click="ubah({{ Js::from($dataForm) }})"/>
                                         <x-delete-button :action="route('kavling.destroy', $k)" :title="'Hapus kavling ' . $k->kode_kavling . '?'" message="Kavling yang pernah bertransaksi tidak bisa dihapus."/>
                                     </div>
@@ -102,7 +109,7 @@
                         $dataForm = ['id' => $k->id, 'blok' => $k->blok, 'nomor' => (int) substr($k->no, strlen($k->blok)), 'tipe' => $k->tipe, 'ukuran' => $k->ukuran, 'luas' => $k->luas ? (float) $k->luas : '', 'catatan' => $k->catatan, 'batas_utara' => $k->batas_utara, 'batas_selatan' => $k->batas_selatan, 'batas_timur' => $k->batas_timur, 'batas_barat' => $k->batas_barat, 'terkunci' => (bool) $t];
                     @endphp
                     <li class="flex items-start gap-3 px-4 py-3.5">
-                        <a href="{{ route('kavling.show', $k) }}" class="min-w-0 flex-1">
+                        <div class="min-w-0 flex-1">
                             <div class="flex items-center gap-2">
                                 <span class="font-semibold text-slate-900">{{ $k->kode_kavling }}</span>
                                 <x-badge :status="$k->status" :label="$k->label_status"/>
@@ -110,7 +117,7 @@
                             <p class="mt-0.5 text-xs text-slate-500">{{ $k->tipe }} · {{ $k->luas ? angka($k->luas) . ' m²' : 'luas belum final' }}</p>
                             <p class="mt-1 text-sm font-medium text-slate-900 tabular-nums">{{ $hargaJual ? rupiah($hargaJual) : 'Menunggu luas' }}</p>
                             @if ($t)<p class="mt-0.5 truncate text-xs text-slate-600">{{ $t->konsumen->nama_lengkap }} · {{ $t->kode_transaksi }}</p>@endif
-                        </a>
+                        </div>
                         <div class="flex shrink-0">
                             <x-icon-button icon="pencil" label="Ubah" x-on:click="ubah({{ Js::from($dataForm) }})"/>
                             <x-delete-button :action="route('kavling.destroy', $k)" :title="'Hapus kavling ' . $k->kode_kavling . '?'" message="Kavling yang pernah bertransaksi tidak bisa dihapus."/>
@@ -147,22 +154,22 @@
                 <p class="-mt-2 text-xs text-slate-500">Kode: <span class="font-semibold text-slate-800" x-text="'{{ \App\Services\Pengaturan::get('prefix_kavling', 'TR') }}-' + (form.blok || '?').toUpperCase() + String(form.nomor || 0).padStart(2, '0')"></span></p>
 
                 <x-field label="Tipe" name="tipe" required>
-                    <x-select name="tipe" :options="collect(\App\Models\Kavling::TIPE)->mapWithKeys(fn ($t) => [$t => $t])" x-model="form.tipe"/>
+                    <x-select name="tipe" :options="\App\Models\Kavling::pilihanTipe()" x-model="form.tipe" x-on:change="pilihTipe()"/>
                 </x-field>
                 <div class="grid gap-4 sm:grid-cols-2">
-                    <x-field label="Ukuran" name="ukuran" hint="Mis. 7 x 14">
-                        <x-input name="ukuran" x-model="form.ukuran"/>
+                    <x-field label="Ukuran" name="ukuran">
+                        <x-input name="ukuran" x-model="form.ukuran" readonly/>
                     </x-field>
-                    <x-field label="Luas (m²)" name="luas" hint="Kosongkan bila belum final">
-                        <x-input name="luas" inputmode="decimal" x-model="form.luas" x-bind:readonly="form.terkunci"/>
+                    <x-field label="Luas (m²)" name="luas">
+                        <x-input name="luas" inputmode="decimal" x-model="form.luas" x-bind:readonly="form.terkunci || luasTetap"/>
                     </x-field>
                 </div>
                 <dl class="space-y-1 rounded-kontrol bg-slate-50 px-4 py-3 text-sm" x-show="!form.terkunci">
-                    <div class="flex justify-between"><dt class="text-slate-500">Harga/m²</dt><dd class="font-medium tabular-nums" x-text="rupiah(harga)"></dd></div>
-                    <div class="flex justify-between"><dt class="text-slate-500">Estimasi harga jual</dt><dd class="font-semibold text-slate-900 tabular-nums" x-text="estimasi ? rupiah(estimasi) : '—'"></dd></div>
+                    <div class="flex justify-between"><dt class="text-slate-500">Harga/m²{{ $tahapAktif ? ' · ' . $tahapAktif->nama_tahap : '' }}</dt><dd class="font-medium tabular-nums" x-text="rupiah(harga)"></dd></div>
+                    <div class="flex justify-between"><dt class="text-slate-500">Harga jual</dt><dd class="font-semibold text-slate-900 tabular-nums" x-text="estimasi ? rupiah(estimasi) : '—'"></dd></div>
                 </dl>
                 <fieldset class="space-y-2">
-                    <legend class="text-sm font-medium text-slate-700">Batas-batas <span class="font-normal text-slate-500">· dicetak di Lampiran A PPJB</span></legend>
+                    <legend class="text-sm font-medium text-slate-700">Batas-batas</legend>
                     <div class="grid gap-3 sm:grid-cols-2">
                         <x-field label="Utara" name="batas_utara"><x-input name="batas_utara" x-model="form.batas_utara"/></x-field>
                         <x-field label="Selatan" name="batas_selatan"><x-input name="batas_selatan" x-model="form.batas_selatan"/></x-field>

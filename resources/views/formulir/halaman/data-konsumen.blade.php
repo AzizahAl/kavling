@@ -1,20 +1,15 @@
-{{-- MARKETING TOOLKIT — Form Data Calon Konsumen --}}
+{{-- Form Data Konsumen — kolom sama dengan form Tambah Konsumen di sistem. --}}
 @include('formulir.halaman._toolkit-gaya')
 
-<p class="tk-judul">FORM DATA CALON KONSUMEN</p>
+<p class="tk-judul">FORM DATA KONSUMEN</p>
 <table class="data tk-form">
-    @foreach (['Nama lengkap', 'No. WhatsApp', 'Alamat', 'Pekerjaan', 'Unit yang diminati', 'Budget', 'Cara pembayaran yang diminati', 'Sumber informasi'] as $label)
+    @foreach (['Nama Lengkap (KTP)', 'NIK (16 digit)', 'No. HP / WA', 'Email', 'Pekerjaan', 'Alamat (KTP)'] as $label)
         <tr><td class="lbl">{{ $label }}</td><td><x-isian penuh/></td></tr>
     @endforeach
+    <tr><td class="lbl"></td><td><x-isian penuh/></td></tr>
 </table>
 
-<p class="tk-sub" style="margin-top:16pt">Kebutuhan Konsumen</p>
-<ul class="centang">
-    <li><span class="kotak"></span>Rumah tinggal</li>
-    <li><span class="kotak"></span>Investasi</li>
-    <li><span class="kotak"></span>Rumah keluarga</li>
-    <li><span class="kotak"></span>Lainnya: <x-isian lebar="120mm"/></li>
-</ul>
+<p class="tk-sub" style="margin-top:16pt">Catatan</p>
+@for ($i = 0; $i < 4; $i++)<div class="tk-baris-tulis"></div>@endfor
 
-<p class="tk-sub" style="margin-top:16pt">Catatan Sales</p>
-@for ($i = 0; $i < 6; $i++)<div class="tk-baris-tulis"></div>@endfor
+<p class="tk-catatan" style="margin-top:12pt">Diisi admin: ID Konsumen <x-isian lebar="45mm"/></p>

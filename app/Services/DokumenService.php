@@ -108,7 +108,7 @@ class DokumenService
                     'cara_bayar' => $t->isAngsuran() ? 'Angsuran ' . $t->tenor . ' bulan' : 'Cash',
                 ];
                 if (! $tgl) {
-                    $peringatan[] = 'Tanggal SPK belum diisi di Checklist Legal; hari & tanggal dibiarkan kosong untuk diisi tangan.';
+                    $peringatan[] = 'Tanggal SPK belum diisi (Data Konsumen › Dokumen); hari & tanggal dibiarkan kosong untuk diisi tangan.';
                 }
                 if (! $pengelola) {
                     $peringatan[] = 'Lengkapi di Pengaturan Proyek: Nama Pengelola / Penjual.';
@@ -144,7 +144,7 @@ class DokumenService
                     $peringatan[] = 'Lengkapi di Pengaturan Proyek: ' . $belum->implode(', ') . '.';
                 }
                 if (! $tgl) {
-                    $peringatan[] = 'Tanggal PPJB belum diisi di Checklist Legal; hari & tanggal dibiarkan kosong untuk diisi tangan.';
+                    $peringatan[] = 'Tanggal PPJB belum diisi (Data Konsumen › Dokumen); hari & tanggal dibiarkan kosong untuk diisi tangan.';
                 }
                 if (collect($d['batas'])->filter()->isEmpty()) {
                     $peringatan[] = "Batas-batas kavling {$kav->kode_kavling} (Lampiran A) belum diisi di Master Kavling.";

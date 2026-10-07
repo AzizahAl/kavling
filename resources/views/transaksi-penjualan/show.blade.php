@@ -12,7 +12,8 @@
     ];
     $jenisAwal = collect(['reservasi', 'booking', 'dp'])->first(fn ($j) => $saran[$j] > 0) ?? ($t->isAngsuran() ? 'angsuran' : 'pelunasan');
     $admin = auth()->user()?->isAdmin();
-    $bisaBayar = $admin && ! $t->isBatal() && $t->status !== 'lunas';
+    // Admin & agen pemilik (dicek di controller) bisa mencatat pembayaran; ubah, hapus, batal hanya admin
+    $bisaBayar = ! $t->isBatal() && $t->status !== 'lunas';
     $formBayarAwal = old('_form') === 'bayar'
         ? ['id' => old('_id'), 'tanggal' => old('tanggal'), 'jenis' => old('jenis'), 'nominal' => old('nominal'), 'metode' => old('metode'), 'nama_penyetor' => old('nama_penyetor'), 'bank_penyetor' => old('bank_penyetor'), 'rekening_penyetor' => old('rekening_penyetor'), 'no_bukti' => old('no_bukti'), 'catatan' => old('catatan')]
         : ['id' => null, 'tanggal' => now()->toDateString(), 'jenis' => $jenisAwal, 'nominal' => $saran[$jenisAwal], 'metode' => 'transfer', 'nama_penyetor' => '', 'bank_penyetor' => '', 'rekening_penyetor' => '', 'no_bukti' => '', 'catatan' => ''];
@@ -33,8 +34,8 @@
 
 <x-page-header :title="$t->kode_transaksi"
                :subtitle="$t->konsumen->nama_lengkap . ' · Kavling ' . $t->kavling->kode_kavling . ' · ' . tanggal($t->tanggal)"
-               :back="$admin ? route('transaksi-penjualan.index') : route('agen.show', $t->agen_id)"
-               :breadcrumbs="$admin ? ['Transaksi' => route('transaksi-penjualan.index'), $t->kode_transaksi => null] : []">
+               :back="route('transaksi-penjualan.index')"
+               :breadcrumbs="['Transaksi Penjualan' => route('transaksi-penjualan.index'), $t->kode_transaksi => null]">
     <x-slot:actions>
         <x-status-bayar :t="$t" class="!h-7 !grow-0 px-3 text-[13px]"/>
         @if ($admin && ! $t->isBatal())
@@ -240,7 +241,7 @@
 
         <x-card title="Checklist Legal">
             @if ($admin && ! $t->isBatal())
-                <x-slot:actions><a href="{{ route('legal.index') }}" class="tautan text-sm">Ubah</a></x-slot:actions>
+                <x-slot:actions><a href="{{ route('konsumen.show', $t->konsumen_id) }}" class="tautan text-sm">Ubah di Data Konsumen</a></x-slot:actions>
             @endif
             <ul class="space-y-2.5 text-sm">
                 @foreach (\App\Models\ChecklistLegal::ITEM as $kunci => $label)
@@ -286,7 +287,7 @@
     </div>
 </div>
 
-@if ($admin)
+@if ($admin || $bisaBayar)
     {{-- Popup catat / ubah pembayaran --}}
     <x-modal name="bayar" judul-js="f.id ? 'Ubah Pembayaran' : 'Catat Pembayaran'" :show="old('_form') === 'bayar' && $errors->any()">
         <form method="POST" :action="action" class="flex min-h-0 flex-1 flex-col">
@@ -316,7 +317,7 @@
                 </div>
                 <div class="grid gap-4 sm:grid-cols-3">
                     <x-field label="A/N Penyetor" name="nama_penyetor"><x-input name="nama_penyetor" x-model="f.nama_penyetor"/></x-field>
-                    <x-field label="Nama Bank" name="bank_penyetor"><x-input name="bank_penyetor" x-model="f.bank_penyetor"/></x-field>
+                    <x-field label="Nama Bank" name="bank_penyetor"><x-select name="bank_penyetor" :options="\App\Support\Bank::pilihan()" placeholder="Pilih bank" x-model="f.bank_penyetor"/></x-field>
                     <x-field label="No Rek. Penyetor" name="rekening_penyetor"><x-input name="rekening_penyetor" inputmode="numeric" x-model="f.rekening_penyetor"/></x-field>
                 </div>
                 <x-field label="Catatan" name="catatan"><x-input name="catatan" x-model="f.catatan"/></x-field>
@@ -326,7 +327,7 @@
     </x-modal>
 
     {{-- Popup pembatalan --}}
-    @if ($refund)
+    @if ($admin && $refund)
         <x-modal name="batal" title="Batalkan Transaksi" :subtitle="$t->kode_transaksi . ' · ' . $t->konsumen->nama_lengkap" max-width="xl"
                  :show="$errors->hasAny(['alasan', 'tanggal_batal', 'pokok_potongan', 'dasar_ketentuan'])">
             <form method="POST" action="{{ route('transaksi-penjualan.batal', $t) }}" class="flex min-h-0 flex-1 flex-col"

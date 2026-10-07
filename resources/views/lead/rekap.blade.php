@@ -9,7 +9,8 @@
 @endphp
 
 @section('content')
-<x-page-header title="Rekap Lead" :subtitle="$judul" :back="route('lead.index')" :breadcrumbs="['Lead Harian' => route('lead.index'), 'Rekap' => null]"/>
+@include('agen._navigasi')
+<x-page-header title="Rekap Lead" :subtitle="$judul" :back="auth()->user()->isAdmin() ? null : route('lead.index')" :breadcrumbs="auth()->user()->isAdmin() ? ['Agen & Marketing' => route('agen.index'), 'Rekap Lead' => null] : ['Lead Harian' => route('lead.index'), 'Rekap' => null]"/>
 
 <x-tabs :items="$tabs"/>
 

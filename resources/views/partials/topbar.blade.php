@@ -29,6 +29,10 @@
                 <p class="text-xs text-slate-500">{{ $peran }}</p>
             </div>
             <x-menu-item :href="route('profil')" icon="user">Profil & Kata Sandi</x-menu-item>
+            @if (auth()->user()->isAdmin())
+                <x-menu-item :href="route('proyek.index')" icon="cog">Pengaturan Proyek</x-menu-item>
+            @endif
+            <div class="my-1 border-t border-slate-100" role="separator"></div>
             <form method="POST" action="{{ route('logout') }}" data-confirm="Anda perlu login lagi untuk masuk ke aplikasi." data-confirm-title="Keluar dari aplikasi?" data-confirm-ok="Ya, keluar">
                 @csrf
                 <x-menu-item type="submit" icon="logout" danger>Keluar</x-menu-item>

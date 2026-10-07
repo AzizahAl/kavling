@@ -15,7 +15,18 @@ class Kavling extends Model
         'tersedia' => 'Tersedia', 'reservasi' => 'Reservasi', 'booking' => 'Booking',
         'dp' => 'DP / Angsuran', 'lunas' => 'Lunas', 'terjual' => 'Terjual',
     ];
-    public const TIPE = ['Prima', 'Standard', 'Standard Hook'];
+    /** Ketentuan tiap tipe: satu-satunya sumber ukuran & luas. Luas null = belum ditetapkan, diisi manual. */
+    public const TIPE = [
+        'Prima'         => ['ukuran' => '7 x 14', 'luas' => 98],
+        'Standard'      => ['ukuran' => '7 x 10', 'luas' => 70],
+        'Standard Hook' => ['ukuran' => '7 x ±8.5 x ±8.3 x ±10', 'luas' => null],
+    ];
+
+    /** @return array<string, string> tipe => tipe, untuk pilihan select */
+    public static function pilihanTipe(): array
+    {
+        return array_combine(array_keys(self::TIPE), array_keys(self::TIPE));
+    }
 
     protected $fillable = [
         'kode_kavling', 'blok', 'no', 'tipe', 'skema_harga_id', 'ukuran',

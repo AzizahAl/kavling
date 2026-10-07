@@ -311,6 +311,21 @@ class TransaksiService
      * Status pembayaran = tahap terjauh yang sudah dibayar (tahap boleh dilewati, DP boleh 0):
      * lunas > angsuran > dp > booking > reservasi (terbayar) > menunggu (belum ada uang masuk).
      */
+    /**
+     * Ringkasan angka penjualan, dipakai bersama Transaksi Penjualan & Data Konsumen agar angkanya selalu sama.
+     * $berjalan = query transaksi berjalan (bukan menunggu, bukan batal), boleh sudah difilter.
+     * Total bayar = pembayaran pokok (DP, angsuran, pelunasan); reservasi & booking di luar harga kavling.
+     */
+    public function ringkasan(\Illuminate\Database\Eloquent\Builder $berjalan): array
+    {
+        $perStatus = (clone $berjalan)->selectRaw('status, COUNT(*) n')->groupBy('status')->pluck('n', 'status')->map(fn ($n) => (int) $n);
+        $nilai = (float) (clone $berjalan)->sum('nilai_jual');
+        $bayar = (float) DB::table('pembayarans')->whereIn('jenis', TransaksiPenjualan::JENIS_POKOK)
+            ->whereIn('transaksi_id', (clone $berjalan)->select('id'))->sum('nominal');
+
+        return ['per_status' => $perStatus, 'jumlah' => $perStatus->sum(), 'nilai_jual' => $nilai, 'terbayar' => $bayar, 'sisa' => $nilai - $bayar];
+    }
+
     public function hitungStatus(TransaksiPenjualan $t): string
     {
         $ada = fn (string $jenis) => $t->terbayarJenis($jenis) > 0;
@@ -333,7 +348,7 @@ class TransaksiService
      */
     public function sinkronKavling(Kavling $kavling): void
     {
-        $terjualSebelum = $this->harga->jumlahTerjual();
+        $bertransaksiSebelum = $this->harga->jumlahBertransaksi();
         $kavling->refresh();
 
         $aktif = $kavling->transaksiAktif()->with('checklist')->first();
@@ -342,7 +357,7 @@ class TransaksiService
             $ppjb = (bool) $aktif->checklist?->ppjbDitandatangani();
             $lunas = $aktif->status === 'lunas';
             $penentu = Pengaturan::get('terjual_saat', 'ppjb');
-            // Transaksi "menunggu" belum menerima uang: tidak pernah dihitung terjual (tidak memengaruhi tahap harga)
+            // Transaksi "menunggu" belum menerima uang: tidak pernah dihitung terjual
             $terjual = ! $aktif->isMenunggu() && (($ppjb && $lunas) || ($penentu === 'ppjb' && $ppjb) || ($penentu === 'lunas' && $lunas));
 
             $status = $terjual ? 'terjual' : match ($aktif->status) {
@@ -359,8 +374,8 @@ class TransaksiService
             $this->riwayat->catat('kavling', $aktif?->id ?? $kavling->transaksiPenjualans()->latest('id')->value('id'), $kavling->id, $lama, $status);
         }
 
-        // Jumlah terjual berubah → tahap harga bisa naik/turun → harga kavling tersedia diperbarui
-        if ($status === 'tersedia' || $this->harga->jumlahTerjual() !== $terjualSebelum) {
+        // Jumlah kavling bertransaksi berubah → tahap harga bisa naik/turun → harga kavling tersedia diperbarui
+        if ($status === 'tersedia' || $this->harga->jumlahBertransaksi() !== $bertransaksiSebelum) {
             $this->harga->sinkronHargaKavling();
         }
     }

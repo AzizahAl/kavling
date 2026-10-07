@@ -16,7 +16,30 @@ class KasTransaksi extends Model
         'refund'     => 'Refund Pembatalan',
         'komisi'     => 'Komisi Agen',
         'tanah'      => 'Kewajiban Tanah',
+        'rab'        => 'Realisasi RAB',
     ];
+
+    /** Menu asal baris otomatis: baris ini hanya bisa diubah dari sana. */
+    public const MENU_ASAL = [
+        'pembayaran' => 'Transaksi Penjualan',
+        'refund'     => 'Transaksi Penjualan',
+        'komisi'     => 'Agen & Marketing',
+        'rab'        => 'RAB & Realisasi',
+    ];
+
+    public const IKON_KATEGORI = [
+        'Penjualan' => 'cart', 'Refund Pembatalan' => 'undo', 'Komisi Agen' => 'coins',
+        'Tanah' => 'landmark', 'Legalitas' => 'scale', 'Pematangan Lahan' => 'map-pin', 'Infrastruktur' => 'building',
+        'Fasilitas' => 'home', 'Marketing' => 'trending-up', 'Operasional' => 'cog', 'Cadangan' => 'shield',
+    ];
+
+    /** Pilihan kategori input manual: kategori RAB; kas masuk ditambah Penjualan. */
+    public static function kategoriManual(string $jenis): array
+    {
+        $rab = array_keys(Rab::KATEGORI);
+
+        return $jenis === 'masuk' ? ['Penjualan', ...$rab] : $rab;
+    }
 
     protected $fillable = [
         'tanggal', 'kode', 'kategori', 'pos', 'rab_id', 'jenis', 'asal',
@@ -40,12 +63,27 @@ class KasTransaksi extends Model
         return $this->asal !== 'manual';
     }
 
+    public function ikonKategori(): string
+    {
+        return self::IKON_KATEGORI[$this->kategori] ?? 'tag';
+    }
+
+    /** Isi kolom Sumber/Transaksi: kode asal untuk baris otomatis, isian bebas untuk baris manual. */
+    public function sumberTampil(): ?string
+    {
+        return match ($this->asal) {
+            'rab'   => 'RAB' . ($this->rab?->periode ? ' · ' . tanggal($this->rab->periode . '-01', 'M Y') : ''),
+            'tanah' => 'Kewajiban Tanah' . ($this->sumber ? ' · ' . $this->sumber : ''),
+            default => $this->sumber,
+        };
+    }
+
     public function linkSumber(): ?string
     {
         return match ($this->asal) {
             'pembayaran', 'refund' => $this->transaksi_id ? route('transaksi-penjualan.show', $this->transaksi_id) : null,
             'komisi' => ($a = KomisiPembayaran::find($this->komisi_pembayaran_id)?->agen_id) ? route('agen.show', $a) : null,
-            'tanah'  => route('kewajiban-tanah.index'),
+            'rab'    => route('rab.index'),
             default => null,
         };
     }

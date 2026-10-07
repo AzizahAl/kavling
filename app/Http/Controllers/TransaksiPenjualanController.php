@@ -22,44 +22,49 @@ class TransaksiPenjualanController extends Controller
 
     public function index(Request $request)
     {
+        $milik = $this->agenLogin();
+        // Filter selain status: dipakai tabel dan kartu ringkasan. Akun agen hanya melihat transaksinya sendiri.
         $filter = fn ($q) => $q
+            ->when($milik, fn ($q) => $q->where('agen_id', $milik))
             ->when($request->filled('cari'), fn ($q) => $q->where(fn ($w) => $w
                 ->where('kode_transaksi', 'like', "%{$request->cari}%")
-                ->orWhereHas('konsumen', fn ($k) => $k->where('nama_lengkap', 'like', "%{$request->cari}%"))
+                ->orWhereHas('konsumen', fn ($k) => $k->where('nama_lengkap', 'like', "%{$request->cari}%")->orWhere('id_konsumen', 'like', "%{$request->cari}%"))
                 ->orWhereHas('kavling', fn ($k) => $k->where('kode_kavling', 'like', "%{$request->cari}%"))))
-            ->when($request->filled('status'), fn ($q) => $q->where('status', $request->status))
             ->when($request->filled('jenis'), fn ($q) => $q->where('jenis_pembayaran', $request->jenis))
             ->when($request->filled('agen'), fn ($q) => $q->where('agen_id', $request->agen))
-            ->when($request->filled('bulan'), fn ($q) => $q->whereYear('tanggal', substr($request->bulan, 0, 4))->whereMonth('tanggal', substr($request->bulan, 5, 2)));
+            ->when(preg_match('/^\d{4}-\d{2}$/', (string) $request->periode), fn ($q) => $q
+                ->whereYear('tanggal', substr($request->periode, 0, 4))->whereMonth('tanggal', substr($request->periode, 5, 2)));
 
         // Daftar utama = transaksi yang sudah menghasilkan penerimaan (+ batal). "Menunggu Pembayaran" tampil terpisah,
-        // kecuali tab Menunggu dipilih.
+        // kecuali status Menunggu dipilih.
         $transaksis = $filter(TransaksiPenjualan::with(['konsumen', 'kavling', 'agen'])->denganRingkasan())
+            ->when($request->filled('status'), fn ($q) => $q->where('status', $request->status))
             ->when($request->status !== 'menunggu', fn ($q) => $q->where('status', '!=', 'menunggu'))
             ->latest('tanggal')->latest('id')
             ->paginate(15)->withQueryString();
 
-        $menunggu = $request->filled('status') ? collect() : TransaksiPenjualan::menunggu()->with(['konsumen', 'kavling', 'agen'])->orderBy('batas_tahan')->get();
+        $menunggu = $request->filled('status') ? collect() : $filter(TransaksiPenjualan::menunggu()->with(['konsumen', 'kavling', 'agen']))->orderBy('batas_tahan')->get();
 
         // Angka penjualan hanya dari transaksi yang sudah menerima uang (bukan menunggu, bukan batal)
-        $berjalan = TransaksiPenjualan::berjalan();
-        $totalPokok = (float) DB::table('pembayarans')->join('transaksi_penjualans as t', 't.id', '=', 'pembayarans.transaksi_id')
-            ->whereNotIn('t.status', ['batal', 'menunggu'])->whereIn('pembayarans.jenis', TransaksiPenjualan::JENIS_POKOK)->sum('pembayarans.nominal');
-        $totalNilai = (float) (clone $berjalan)->sum('nilai_jual');
+        $r = $this->svc->ringkasan($filter(TransaksiPenjualan::berjalan()));
+        $perStatus = $r['per_status'];
 
         $stats = [
-            'aktif'       => (clone $berjalan)->count(),
-            'per_status'  => TransaksiPenjualan::selectRaw('status, COUNT(*) n')->groupBy('status')->pluck('n', 'status'),
-            'nilai_jual'  => $totalNilai,
-            'terbayar'    => $totalPokok,
-            'piutang'     => $totalNilai - $totalPokok,
+            'aktif'      => $r['jumlah'],
+            'reservasi'  => (int) ($perStatus['reservasi'] ?? 0),
+            'booking'    => (int) ($perStatus['booking'] ?? 0),
+            'dp'         => (int) ($perStatus['dp'] ?? 0) + (int) ($perStatus['angsuran'] ?? 0),
+            'lunas'      => (int) ($perStatus['lunas'] ?? 0),
+            'nilai_jual' => $r['nilai_jual'],
+            'terbayar'   => $r['terbayar'],
+            'piutang'    => $r['sisa'],
         ];
 
         return view('transaksi-penjualan.index', [
             'transaksis' => $transaksis,
             'menunggu'   => $menunggu,
             'stats'      => $stats,
-            'agens'      => Agen::orderBy('nama_agen')->pluck('nama_agen', 'id'),
+            'agens'      => Agen::orderBy('nama_agen')->when($milik, fn ($q) => $q->whereKey($milik))->pluck('nama_agen', 'id'),
         ]);
     }
 
@@ -84,7 +89,7 @@ class TransaksiPenjualanController extends Controller
             'bayar_nominal'  => ['nullable', 'numeric', 'min:0'],
             'bayar_metode'   => ['nullable', Rule::in(array_keys(Pembayaran::METODE_KONSUMEN))],
             'bayar_nama_penyetor'     => ['nullable', 'string', 'max:100'],
-            'bayar_bank_penyetor'     => ['nullable', 'string', 'max:60'],
+            'bayar_bank_penyetor'     => ['nullable', Rule::in(\App\Support\Bank::DAFTAR)],
             'bayar_rekening_penyetor' => ['nullable', 'string', 'max:40'],
             'bayar_no_bukti' => ['nullable', 'string', 'max:100'],
         ];
@@ -96,6 +101,10 @@ class TransaksiPenjualanController extends Controller
             'konsumen_id.required' => 'Pilih konsumen, atau isi data konsumen baru.',
             'konsumen_nik.unique'  => 'NIK ini sudah terdaftar. Pilih dari konsumen lama.',
         ], $this->atribut());
+        // Transaksi yang dibuat akun agen selalu atas nama agen itu
+        if ($milik = $this->agenLogin()) {
+            $data['agen_id'] = $milik;
+        }
 
         $t = DB::transaction(function () use ($data, $baru) {
             if ($baru) {
@@ -212,7 +221,7 @@ class TransaksiPenjualanController extends Controller
                     'id' => $k->id, 'kode' => $k->kode_kavling, 'tipe' => $k->tipe, 'ukuran' => $k->ukuran,
                     'luas' => (float) $k->luas, 'harga_m2' => $hargaM2, 'harga' => $k->luas ? round($k->luas * $hargaM2) : null,
                 ]),
-            'agens'   => Agen::orderBy('nama_agen')->pluck('nama_agen', 'id'),
+            'agens'   => Agen::orderBy('nama_agen')->when($this->agenLogin(), fn ($q, $id) => $q->whereKey($id))->pluck('nama_agen', 'id'),
             'aturan'  => [
                 'biaya_reservasi' => Pengaturan::get('biaya_reservasi', 0),
                 'biaya_booking'   => Pengaturan::get('biaya_booking', 0),

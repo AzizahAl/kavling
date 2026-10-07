@@ -53,9 +53,10 @@ class Status
         'closing'   => ['Closing', 'sukses', 'check'],
         // RAB (rumus Excel RAB_MASTER)
         'belum_dianggarkan' => ['Belum Dianggarkan', 'abu', null],
+        'belum_direalisasikan' => ['Belum Direalisasikan', 'biru', null],
         'berjalan'  => ['Berjalan', 'biru', null],
         'sesuai'    => ['Sesuai', 'sukses', 'check'],
-        'melebihi'  => ['Melebihi', 'merah', 'alert'],
+        'melebihi'  => ['Melebihi Anggaran', 'merah', 'alert'],
         // umum
         'aktif'     => ['Aktif', 'merek', 'titik'],
         'nonaktif'  => ['Nonaktif', 'abu', null],

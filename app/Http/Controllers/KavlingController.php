@@ -77,14 +77,13 @@ class KavlingController extends Controller
         return redirect()->route('kavling.index')->with('success', "Kavling {$kavling->kode_kavling} berhasil dihapus.");
     }
 
-    /** Kode kavling dibentuk dari blok & nomor: TR-A01. Harga & status diatur otomatis, bukan dari form. */
+    /** Kode kavling dibentuk dari blok & nomor: TR-A01. Ukuran/luas dari tipe; harga & status diatur otomatis, bukan dari form. */
     private function validasi(Request $request, ?Kavling $kavling = null): array
     {
         $v = $request->validate([
             'blok'    => ['required', 'alpha', 'max:3'],
             'nomor'   => ['required', 'integer', 'min:1', 'max:99'],
-            'tipe'    => ['required', Rule::in(Kavling::TIPE)],
-            'ukuran'  => ['nullable', 'string', 'max:100'],
+            'tipe'    => ['required', Rule::in(array_keys(Kavling::TIPE))],
             'luas'    => ['nullable', 'numeric', 'min:1', 'max:100000'],
             'catatan' => ['nullable', 'string', 'max:500'],
             'batas_utara'   => ['nullable', 'string', 'max:150'],
@@ -92,6 +91,11 @@ class KavlingController extends Controller
             'batas_timur'   => ['nullable', 'string', 'max:150'],
             'batas_barat'   => ['nullable', 'string', 'max:150'],
         ], [], ['nomor' => 'nomor kavling']);
+
+        // Ukuran & luas mengikuti ketentuan tipe; luas diisi manual hanya bila tipenya belum menetapkan luas
+        $ketentuan = Kavling::TIPE[$v['tipe']];
+        $v['ukuran'] = $ketentuan['ukuran'];
+        $v['luas'] = $ketentuan['luas'] ?? ($v['luas'] ?? null);
 
         $blok = strtoupper($v['blok']);
         $kode = sprintf('%s-%s%02d', Pengaturan::get('prefix_kavling', 'TR'), $blok, $v['nomor']);
@@ -106,8 +110,8 @@ class KavlingController extends Controller
             'blok'         => $blok,
             'no'           => $blok . $v['nomor'],
             'tipe'         => $v['tipe'],
-            'ukuran'       => $v['ukuran'] ?? null,
-            'luas'         => $v['luas'] ?? null,
+            'ukuran'       => $v['ukuran'],
+            'luas'         => $v['luas'],
             'catatan'      => $v['catatan'] ?? null,
             'batas_utara'   => $v['batas_utara'] ?? null,
             'batas_selatan' => $v['batas_selatan'] ?? null,

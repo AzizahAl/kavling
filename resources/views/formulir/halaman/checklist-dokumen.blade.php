@@ -1,19 +1,27 @@
-{{-- MARKETING TOOLKIT — Checklist Dokumen Konsumen --}}
+{{-- Checklist Dokumen Konsumen — sesuai yang dicatat sistem: identitas, kwitansi per jenis pembayaran, formulir, dan status dokumen (SPK, PPJB, AJB). --}}
 @include('formulir.halaman._toolkit-gaya')
 
 <p class="tk-judul">CHECKLIST DOKUMEN KONSUMEN</p>
-<table class="grid">
-    <thead><tr><th style="width:40%">Dokumen</th><th style="width:15%">Diterima</th><th>Keterangan</th></tr></thead>
+<table class="data tk-form tk-form-lbl-pendek">
+    @foreach (['ID Konsumen', 'Nama Lengkap (KTP)', 'Kode Kavling', 'ID Transaksi'] as $label)
+        <tr><td class="lbl">{{ $label }}</td><td><x-isian penuh/></td></tr>
+    @endforeach
+</table>
+
+<table class="grid" style="margin-top:12pt">
+    <thead><tr><th style="width:36%">Dokumen</th><th style="width:30%">Status</th><th style="width:16%">Tanggal</th><th>Keterangan</th></tr></thead>
     <tbody>
-        @foreach (['KTP', 'KK', 'NPWP (bila diperlukan)', 'Bukti pembayaran', 'Form data konsumen', 'Form reservasi', 'Form booking', 'SPK', 'PPJBS/PPJB', 'Dokumen pendukung lain'] as $dok)
-            <tr><td style="height:16pt">{{ $dok }}</td><td class="c"><span class="kotak" style="margin:0"></span></td><td></td></tr>
+        @php
+            $dok = ['KTP (sesuai NIK)', 'Form Data Konsumen', 'Form Reservasi', 'Form Booking'];
+            $kwitansi = collect(\App\Models\Pembayaran::JENIS)->map(fn ($l) => 'Kwitansi ' . $l)->values()->all();
+            $legal = array_values(\App\Models\ChecklistLegal::ITEM);
+        @endphp
+        @foreach ([...$dok, ...$kwitansi] as $d)
+            <tr><td style="height:16pt">{{ $d }}</td><td><span class="kotak"></span>Ada &nbsp; <span class="kotak"></span>Belum</td><td></td><td></td></tr>
+        @endforeach
+        @foreach ($legal as $d)
+            <tr><td style="height:16pt">{{ $d }}</td><td><span class="kotak"></span>Belum <span class="kotak"></span>Proses <span class="kotak"></span>Selesai</td><td></td><td></td></tr>
         @endforeach
     </tbody>
 </table>
-
-<p class="tk-sub" style="margin-top:16pt">Arsip</p>
-<table class="data tk-form tk-form-lbl-pendek">
-    <tr><td class="lbl">Map/folder konsumen</td><td><x-isian penuh/></td></tr>
-    <tr><td class="lbl">Nomor arsip</td><td><x-isian penuh/></td></tr>
-    <tr><td class="lbl">Tanggal lengkap</td><td><x-isian penuh/></td></tr>
-</table>
+<p class="tk-catatan">Status SPK, PPJB, dan AJB dicatat admin di Data Konsumen › Dokumen.</p>

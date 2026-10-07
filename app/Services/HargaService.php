@@ -4,92 +4,91 @@ namespace App\Services;
 
 use App\Models\Kavling;
 use App\Models\SkemaHarga;
+use Illuminate\Support\Collection;
 
 /**
- * Skema harga bertahap (sesuai rumus Excel SKEMA_HARGA!E4):
- *   harga aktif = harga awal + INT(unit terjual / unit per kenaikan) × kenaikan, maksimal di tahap terakhir.
- * "Terjual" = kavling yang PPJB-nya sudah ditandatangani.
+ * Satu-satunya tempat perhitungan tahap & harga, dipakai Master Kavling, Skema Harga, form transaksi, dan dashboard.
+ * Tahap harga = baris tabel skema_hargas (dikelola di halaman Skema Harga).
+ * Tahap aktif = tahap yang rentang unitnya memuat jumlah kavling yang sudah bertransaksi
+ * (transaksi apa pun yang tidak batal, terjual atau belum); lewat semua rentang → tahap terakhir.
  * Kavling yang sudah bertransaksi memakai harga terkunci di transaksinya, tidak ikut berubah.
  */
 class HargaService
 {
-    public function jumlahTerjual(): int
+    /** Jumlah kavling yang memiliki transaksi tidak batal: penentu tahap harga. */
+    public function jumlahBertransaksi(): int
     {
-        return Kavling::where('status', 'terjual')->count();
+        return Kavling::whereHas('transaksiAktif')->count();
     }
 
-    /** Daftar tahap hasil hitung dari Pengaturan: [nomor, nama, unit_mulai, unit_sampai, harga]. */
-    public function daftarTahap(): array
+    /** @return Collection<int, SkemaHarga> urut dari unit terkecil */
+    public function daftarTahap(): Collection
     {
-        $awal    = (int) Pengaturan::get('harga_awal_m2', 0);
-        $naik    = (int) Pengaturan::get('kenaikan_harga_m2', 0);
-        $perUnit = max(1, (int) Pengaturan::get('unit_per_kenaikan', 1));
-        $jumlah  = max(1, (int) Pengaturan::get('jumlah_tahap', 1));
-        $total   = (int) Pengaturan::get('jumlah_kavling', 0);
+        return SkemaHarga::orderBy('unit_mulai')->orderBy('id')->get()->values();
+    }
 
-        $tahap = [];
-        for ($i = 1; $i <= $jumlah; $i++) {
-            $mulai = ($i - 1) * $perUnit;
-            $sampai = $i === $jumlah ? max($mulai, $total) : $i * $perUnit - 1;
-            $tahap[] = [
-                'nomor'       => $i,
-                'nama_tahap'  => "Tahap {$i}",
-                'unit_mulai'  => $mulai,
-                'unit_sampai' => $sampai,
-                'harga_per_m2' => $awal + ($i - 1) * $naik,
-            ];
+    /** Posisi tahap aktif di daftarTahap() (mulai 0), null bila belum ada tahap. */
+    private function indeksAktif(Collection $tahap, int $jumlah): ?int
+    {
+        if ($tahap->isEmpty()) {
+            return null;
         }
+        // Tahap terakhir yang sudah dimulai; menutup juga celah antar rentang & jumlah di atas tahap terakhir
+        $indeks = $tahap->filter(fn ($t) => $t->unit_mulai <= $jumlah)->keys()->last();
 
-        return $tahap;
+        return $indeks ?? 0;
     }
 
-    public function nomorTahapAktif(?int $terjual = null): int
+    public function tahapAktif(?int $jumlah = null): ?SkemaHarga
     {
-        $terjual ??= $this->jumlahTerjual();
-        $perUnit = max(1, (int) Pengaturan::get('unit_per_kenaikan', 1));
-        $jumlah  = max(1, (int) Pengaturan::get('jumlah_tahap', 1));
+        $tahap = $this->daftarTahap();
+        $i = $this->indeksAktif($tahap, $jumlah ?? $this->jumlahBertransaksi());
 
-        return min($jumlah, intdiv($terjual, $perUnit) + 1);
+        return $i === null ? null : $tahap[$i];
     }
 
-    public function tahapAktif(): ?SkemaHarga
+    /** Nomor urut tahap aktif (1, 2, …); 0 bila belum ada tahap. */
+    public function nomorTahapAktif(?int $jumlah = null): int
     {
-        $tahap = SkemaHarga::orderBy('unit_mulai')->get();
+        $i = $this->indeksAktif($this->daftarTahap(), $jumlah ?? $this->jumlahBertransaksi());
 
-        return $tahap->get($this->nomorTahapAktif() - 1) ?? $tahap->last();
+        return $i === null ? 0 : $i + 1;
     }
 
     public function hargaAktif(): int
     {
-        return (int) ($this->daftarTahap()[$this->nomorTahapAktif() - 1]['harga_per_m2'] ?? 0);
+        return (int) ($this->tahapAktif()?->harga_per_m2 ?? 0);
     }
 
-    /** Samakan isi tabel skema_hargas dengan Pengaturan, lalu perbarui harga kavling tersedia. */
-    public function sinkronSkema(): void
+    /** Sisa kavling bertransaksi sampai tahap berikutnya aktif; null bila sudah di tahap terakhir. */
+    public function menujuNaik(?int $jumlah = null): ?int
     {
-        $lama = SkemaHarga::orderBy('unit_mulai')->get()->values();
+        $jumlah ??= $this->jumlahBertransaksi();
+        $tahap = $this->daftarTahap();
+        $i = $this->indeksAktif($tahap, $jumlah);
+        $berikut = $i === null ? null : $tahap->get($i + 1);
 
-        foreach ($this->daftarTahap() as $i => $t) {
-            $data = collect($t)->except('nomor')->all();
-            isset($lama[$i]) ? $lama[$i]->update($data) : SkemaHarga::create($data);
-        }
+        return $berikut ? max(0, $berikut->unit_mulai - $jumlah) : null;
+    }
 
-        // Tahap berlebih dihapus (FK di kavling/transaksi otomatis jadi null)
-        $lama->slice(count($this->daftarTahap()))->each->delete();
+    /** Harga untuk luas tertentu pada tahap aktif. */
+    public function hargaJual($luas, ?int $hargaM2 = null): ?float
+    {
+        $hargaM2 ??= $this->hargaAktif();
 
-        $this->sinkronHargaKavling();
+        return $luas > 0 ? round((float) $luas * $hargaM2) : null;
     }
 
     /** Kavling yang masih tersedia selalu memakai harga tahap aktif. */
     public function sinkronHargaKavling(): void
     {
         $tahap = $this->tahapAktif();
-        $harga = $this->hargaAktif();
+        $harga = (int) ($tahap?->harga_per_m2 ?? 0);
 
         Kavling::where('status', 'tersedia')->get()->each(function (Kavling $k) use ($tahap, $harga) {
             $k->skema_harga_id = $tahap?->id;
             $k->harga_per_m2   = $harga;
-            $k->harga_jual     = $k->luas > 0 ? round($k->luas * $harga) : null;
+            $k->harga_jual     = $this->hargaJual($k->luas, $harga);
             $k->saveQuietly();
         });
     }

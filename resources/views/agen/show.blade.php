@@ -3,10 +3,16 @@
 
 @section('content')
 @php $admin = auth()->user()?->isAdmin(); @endphp
-<div x-data="{ a: @js(['id' => $agen->id, 'nama_agen' => old('nama_agen', $agen->nama_agen), 'no_hp' => $agen->no_hp, 'email' => $agen->email, 'komisi_nominal' => old('komisi_nominal', $agen->komisi_nominal), 'aktif' => $agen->aktif, 'catatan' => $agen->catatan]), aksiAgen: '{{ route('agen.update', $agen) }}' }">
+@php
+    $akunAktif = $agen->user ? $agen->user->aktif : $agen->aktif;
+    $formAgen = old('_form') === 'agen'
+        ? ['id' => $agen->id, 'kode' => $agen->kode_agen, 'nama_agen' => old('nama_agen'), 'no_hp' => old('no_hp'), 'komisi_nominal' => old('komisi_nominal'), 'login' => old('login'), 'aktif' => (bool) old('aktif'), 'punya_akun' => (bool) $agen->user]
+        : ['id' => $agen->id, 'kode' => $agen->kode_agen, 'nama_agen' => $agen->nama_agen, 'no_hp' => $agen->no_hp, 'komisi_nominal' => $agen->komisi_nominal !== null ? (float) $agen->komisi_nominal : '', 'login' => $agen->user?->email ?? '', 'aktif' => $akunAktif, 'punya_akun' => (bool) $agen->user];
+@endphp
+<div x-data="{ a: @js($formAgen), aksiAgen: '{{ route('agen.update', $agen) }}' }">
 
 <x-page-header :title="$agen->nama_agen" :subtitle="$agen->kode_agen . ($agen->no_hp ? ' · ' . $agen->no_hp : '') . ($agen->aktif ? '' : ' · Nonaktif')"
-               :back="$admin ? route('agen.index') : null" :breadcrumbs="$admin ? ['Agen' => route('agen.index'), $agen->kode_agen => null] : []">
+               :back="$admin ? route('agen.index') : null" :breadcrumbs="$admin ? ['Agen & Marketing' => route('agen.index'), $agen->kode_agen => null] : []">
     @if ($admin)
         <x-slot:actions>
             <x-button variant="secondary" icon="pencil" x-on:click="$dispatch('open-modal', 'agen')">Ubah</x-button>

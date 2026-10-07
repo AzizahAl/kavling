@@ -13,19 +13,19 @@ class KavlingSeeder extends Seeder
     {
         $data = [];
         foreach (range(1, 7) as $n) {
-            $data[] = ['A', $n, 'Prima', '7 x 14', 98, null];
+            $data[] = ['A', $n, 'Prima', null];
         }
         foreach (range(1, 6) as $n) {
-            $data[] = ['B', $n, 'Standard', '7 x 10', 70, null];
+            $data[] = ['B', $n, 'Standard', null];
         }
-        $data[] = ['B', 7, 'Standard Hook', '7 x ±8.5 x ±8.3 x ±10', null, 'Hook – luas menunggu angka final'];
+        $data[] = ['B', 7, 'Standard Hook', 'Hook – luas menunggu angka final'];
 
-        foreach ($data as [$blok, $n, $tipe, $ukuran, $luas, $catatan]) {
+        foreach ($data as [$blok, $n, $tipe, $catatan]) {
             Kavling::firstOrCreate(
                 ['kode_kavling' => sprintf('TR-%s%02d', $blok, $n)],
                 [
-                    'blok' => $blok, 'no' => $blok . $n, 'tipe' => $tipe, 'ukuran' => $ukuran,
-                    'luas' => $luas, 'status' => 'tersedia', 'catatan' => $catatan,
+                    'blok' => $blok, 'no' => $blok . $n, 'tipe' => $tipe, 'ukuran' => Kavling::TIPE[$tipe]['ukuran'],
+                    'luas' => Kavling::TIPE[$tipe]['luas'], 'status' => 'tersedia', 'catatan' => $catatan,
                 ]
             );
         }

@@ -11,15 +11,12 @@ use Illuminate\Validation\Validator;
 
 class ProyekController extends Controller
 {
-    public function index(HargaService $harga)
+    public function index()
     {
         return view('proyek.index', [
-            'nilai'      => Pengaturan::semua(),
-            'definisi'   => Pengaturan::DEFINISI,
-            'grup'       => Pengaturan::GRUP,
-            'tahap'      => $harga->daftarTahap(),
-            'tahapAktif' => $harga->nomorTahapAktif(),
-            'terjual'    => $harga->jumlahTerjual(),
+            'nilai'    => Pengaturan::semua(),
+            'definisi' => Pengaturan::DEFINISI,
+            'grup'     => Pengaturan::GRUP,
         ]);
     }
 
@@ -44,11 +41,9 @@ class ProyekController extends Controller
                 default           => ['nullable', 'string', 'max:255'],
             };
         }
-        foreach (['harga_awal_m2', 'unit_per_kenaikan', 'jumlah_tahap', 'jumlah_kavling', 'tenor_maksimal', 'batas_tahan_jam', 'komisi_nominal'] as $wajib) {
+        foreach (['jumlah_kavling', 'tenor_maksimal', 'batas_tahan_jam', 'komisi_nominal'] as $wajib) {
             $aturan[$wajib][0] = 'required';
         }
-        $aturan['unit_per_kenaikan'][] = 'min:1';
-        $aturan['jumlah_tahap'][] = 'min:1';
         $aturan['tenor_maksimal'][] = 'min:1';
         $aturan['batas_tahan_jam'][] = 'min:1';
         foreach (['prefix_konsumen', 'prefix_transaksi', 'prefix_pembayaran', 'prefix_kavling'] as $p) {
@@ -80,11 +75,11 @@ class ProyekController extends Controller
 
         DB::transaction(function () use ($data, $harga, $transaksi) {
             Pengaturan::simpan($data);
-            $harga->sinkronSkema();
-            // Penentu "terjual" bisa berubah → status semua kavling dihitung ulang
+            // Penentu "terjual" bisa berubah → status semua kavling dihitung ulang, lalu harga kavling tersedia
             $transaksi->sinkronSemuaKavling();
+            $harga->sinkronHargaKavling();
         });
 
-        return redirect()->route('proyek.index')->with('success', 'Pengaturan proyek berhasil disimpan. Tahap harga & harga kavling tersedia sudah diperbarui.');
+        return redirect()->route('proyek.index')->with('success', 'Pengaturan proyek berhasil disimpan. Harga kavling tersedia sudah diperbarui.');
     }
 }

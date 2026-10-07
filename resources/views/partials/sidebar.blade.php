@@ -4,41 +4,33 @@
     $pengguna = auth()->user();
     $menu = $pengguna?->isAgen() ? [
         [null, [
-            ['Kinerja Saya', 'agen.show', 'home', ['agen.show', 'transaksi-penjualan.show'], $pengguna->agen_id],
+            ['Kinerja Saya', 'agen.show', 'home', 'agen.show', $pengguna->agen_id],
+        ]],
+        ['Penjualan', [
+            ['Transaksi Penjualan', 'transaksi-penjualan.index', 'cart', 'transaksi-penjualan.*'],
         ]],
         ['Marketing', [
             ['Lead Harian', 'lead.index', 'funnel', 'lead.index'],
             ['Rekap Lead', 'lead.rekap', 'chart', 'lead.rekap'],
-            ['Formulir & Toolkit', 'formulir.index', 'printer', 'formulir.*'],
         ]],
     ] : [
         [null, [
             ['Dashboard', 'dashboard', 'home', 'dashboard'],
         ]],
         ['Data Master', [
-            ['Pengaturan Proyek', 'proyek.index', 'cog', 'proyek.*'],
             ['Kavling', 'kavling.index', 'grid', 'kavling.*'],
             ['Skema Harga', 'skema-harga.index', 'tag', 'skema-harga.*'],
-            ['Agen', 'agen.index', 'users', 'agen.*'],
-            ['Pengguna', 'pengguna.index', 'key', 'pengguna.*'],
-        ]],
-        ['Marketing', [
-            ['Lead Harian', 'lead.index', 'funnel', 'lead.*'],
-            ['Formulir & Toolkit', 'formulir.index', 'printer', 'formulir.*'],
+            ['Agen & Marketing', 'agen.index', 'users', ['agen.*', 'lead.*']],
         ]],
         ['Penjualan', [
-            ['Transaksi', 'transaksi-penjualan.index', 'cart', ['transaksi-penjualan.*', 'pembayaran.*', 'dokumen.*']],
-            ['Konsumen', 'konsumen.index', 'user', 'konsumen.*'],
+            ['Transaksi Penjualan', 'transaksi-penjualan.index', 'cart', ['transaksi-penjualan.*', 'pembayaran.*', 'dokumen.*']],
+            ['Data Konsumen', 'konsumen.index', 'user', 'konsumen.*'],
             ['Angsuran & Piutang', 'angsuran.index', 'calendar', 'angsuran.*'],
         ]],
         ['Keuangan', [
             ['Kas Proyek', 'kas-proyek.index', 'wallet', 'kas-proyek.*'],
             ['RAB & Realisasi', 'rab.index', 'clipboard', 'rab.*'],
             ['Alokasi Cashflow', 'cashflow.index', 'cashflow', 'cashflow.*'],
-            ['Kewajiban Tanah', 'kewajiban-tanah.index', 'landmark', 'kewajiban-tanah.*'],
-        ]],
-        ['Dokumen', [
-            ['Checklist Legal', 'legal.index', 'check-badge', 'legal.*'],
         ]],
     ];
 @endphp

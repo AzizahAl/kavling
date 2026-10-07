@@ -151,7 +151,7 @@
                     <div class="flex justify-between gap-2"><dt class="text-slate-600">{{ $p->label }} <span class="text-xs text-slate-400">{{ persen($p->persen, false) }}</span></dt><dd @class(['tabular-nums', 'text-red-600' => $p->saldo < 0])>{{ rupiah($p->saldo) }}</dd></div>
                 @endforeach
             </dl>
-            <a href="{{ route('kewajiban-tanah.index') }}" class="-mx-1 block rounded-kontrol border-t border-slate-100 px-1 pt-4 hover:bg-slate-50">
+            <a href="{{ route('rab.index', ['periode' => 'semua', 'kategori' => 'Tanah']) }}" class="-mx-1 block rounded-kontrol border-t border-slate-100 px-1 pt-4 hover:bg-slate-50">
                 <div class="flex justify-between gap-2"><span class="text-slate-600">Kewajiban tanah</span>
                     <span class="font-semibold tabular-nums">{{ $tanah['total'] === null ? 'Total belum ditetapkan' : ($tanah['lunas'] ? 'Lunas' : 'Sisa ' . rupiah_singkat($tanah['sisa'])) }}</span></div>
                 @if ($tanah['total'])
