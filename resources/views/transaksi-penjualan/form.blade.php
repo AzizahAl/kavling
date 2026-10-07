@@ -29,7 +29,7 @@
 
 @section('content')
 <x-page-header :title="$ubah ? 'Ubah Transaksi' : 'Transaksi Baru'"
-               :subtitle="$ubah ? $transaksi->kode_transaksi . ' · kavling & harga terkunci' : 'Harga dikunci saat disimpan.'"
+               :subtitle="$ubah ? $transaksi->kode_transaksi : null"
                :back="$ubah ? route('transaksi-penjualan.show', $transaksi) : route('transaksi-penjualan.index')"
                :breadcrumbs="['Transaksi Penjualan' => route('transaksi-penjualan.index'), ($ubah ? 'Ubah' : 'Baru') => null]"/>
 

@@ -39,7 +39,7 @@
 </div>
 
 @if ($menunggu->isNotEmpty())
-    <x-card class="mb-4" title="Menunggu Pembayaran Reservasi" subtitle="Kavling ditahan sementara. Belum dihitung sebagai penjualan, pendapatan, komisi, maupun tahap harga." :padding="false">
+    <x-card class="mb-4" title="Menunggu Pembayaran Reservasi" :padding="false">
         <ul class="divide-y divide-slate-100">
             @foreach ($menunggu as $m)
                 <li class="flex flex-wrap items-center gap-3 px-4 py-3 sm:px-5" x-data="hitungMundur(@js($m->batas_tahan?->toIso8601String()))">

@@ -67,7 +67,7 @@
         </div>
     </x-card>
 
-    <x-card title="Penjualan 12 Bulan" subtitle="Nilai jual transaksi aktif" class="xl:col-span-2">
+    <x-card title="Penjualan 12 Bulan" class="xl:col-span-2">
         <div class="h-64"><canvas id="grafik-jual" role="img" aria-label="Grafik penjualan per bulan"></canvas></div>
     </x-card>
 </div>
@@ -134,7 +134,7 @@
 </div>
 
 <div class="mb-5 grid grid-cols-1 gap-5 xl:grid-cols-3">
-    <x-card title="Arus Kas" subtitle="Masuk vs keluar per bulan" class="xl:col-span-2">
+    <x-card title="Arus Kas" class="xl:col-span-2">
         <div class="h-64"><canvas id="grafik-kas" role="img" aria-label="Grafik arus kas per bulan"></canvas></div>
     </x-card>
 
@@ -169,7 +169,7 @@
 </div>
 
 @if ($menunggu->isNotEmpty())
-    <x-card class="mb-5" title="Menunggu Pembayaran Reservasi" subtitle="Kavling ditahan sementara; belum dihitung sebagai penjualan." :padding="false">
+    <x-card class="mb-5" title="Menunggu Pembayaran Reservasi" :padding="false">
         <x-slot:actions><a href="{{ route('transaksi-penjualan.index', ['status' => 'menunggu']) }}" class="tautan text-sm">Semua</a></x-slot:actions>
         <ul class="divide-y divide-slate-100">
             @foreach ($menunggu as $m)

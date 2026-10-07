@@ -40,7 +40,7 @@
 </div>
 
 <div class="grid grid-cols-1 gap-5 xl:grid-cols-5">
-    <x-card title="Per Agen" subtitle="Tiap tahap dihitung pada tanggal terjadinya." :padding="false" :class="$deret ? 'xl:col-span-3' : 'xl:col-span-5'">
+    <x-card title="Per Agen" :padding="false" :class="$deret ? 'xl:col-span-3' : 'xl:col-span-5'">
         @if ($rekap->isEmpty())
             <x-empty-state title="Belum ada agen"/>
         @else

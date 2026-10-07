@@ -121,7 +121,7 @@
 
 <div class="grid grid-cols-1 gap-5 xl:grid-cols-3">
     <div class="min-w-0 space-y-5 xl:col-span-2">
-        <x-card title="Pembayaran" subtitle="Otomatis tercatat sebagai kas masuk." :padding="false">
+        <x-card title="Pembayaran" :padding="false">
             @if ($t->pembayarans->isEmpty())
                 <x-empty-state title="Belum ada pembayaran">
                     @if ($bisaBayar)<x-button icon="plus" x-on:click="baru()">Catat Pembayaran</x-button>@endif
@@ -260,7 +260,7 @@
             @endif
         </x-card>
 
-        <x-card title="Riwayat Status" subtitle="Tercatat otomatis, tidak bisa diubah.">
+        <x-card title="Riwayat Status">
             @if ($t->riwayats->isEmpty())
                 <p class="text-sm text-slate-500">Belum ada riwayat.</p>
             @else

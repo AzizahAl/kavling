@@ -57,7 +57,7 @@
             @endif
         </x-card>
 
-        <x-card title="Pembayaran Komisi" subtitle="Tercatat sebagai kas keluar." :padding="false">
+        <x-card title="Pembayaran Komisi" :padding="false">
             @if ($agen->komisiPembayarans->isEmpty())
                 <x-empty-state title="Belum ada pembayaran"/>
             @else
