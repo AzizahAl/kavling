@@ -38,8 +38,8 @@
 
             <form method="POST" action="{{ route('login.proses') }}" class="mt-6 space-y-4" x-data="{ lihat: false }">
                 @csrf
-                <x-field label="Email" name="email">
-                    <x-input name="email" type="email" autocomplete="username" autofocus required/>
+                <x-field label="Email atau Nama Pengguna" name="email">
+                    <x-input name="email" autocomplete="username" autocapitalize="none" spellcheck="false" autofocus required/>
                 </x-field>
                 <x-field label="Kata Sandi" name="password">
                     <div class="relative">

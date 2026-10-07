@@ -1,48 +1,32 @@
 {{-- MARKETING TOOLKIT — paket pembayaran & alur --}}
 @include('formulir.halaman._toolkit-gaya')
 
+@php
+    $p = \App\Services\Pengaturan::semua();
+    $dp = ($p['dp_minimal_persen'] ?? 0) > 0 ? 'Minimal ' . persen($p['dp_minimal_persen'], false) : 'Boleh tanpa DP';
+    if (($p['dp_anjuran_persen'] ?? 0) > 0) { $dp .= ' · anjuran ' . persen($p['dp_anjuran_persen'], false) . ' dari harga kavling'; }
+@endphp
 <p class="tk-judul">PAKET PEMBAYARAN &amp; BIAYA AWAL</p>
 <table class="grid">
     <thead><tr><th style="width:30%">Komponen</th><th>Ketentuan</th></tr></thead>
     <tbody>
-        <tr><td>Reservasi</td><td>Rp500.000</td></tr>
-        <tr><td>Booking fee</td><td>Rp2.000.000</td></tr>
-        <tr><td>Pembatalan booking</td><td>Ketentuan internal: Rp1.000.000 dialokasikan untuk komisi/biaya marketing sesuai kebijakan proyek</td></tr>
-        <tr><td>DP</td><td>Bebas / disesuaikan kesepakatan</td></tr>
-        <tr><td>Cicilan</td><td>Maksimal 18 bulan</td></tr>
-        <tr><td>Harga tanah</td><td>Mengikuti unit &amp; pricelist saat transaksi</td></tr>
+        <tr><td>Reservasi</td><td>{{ rupiah($p['biaya_reservasi'] ?? 0) }} (di luar harga kavling), berlaku {{ $p['masa_reservasi_hari'] ?? '—' }} hari</td></tr>
+        <tr><td>Booking fee</td><td>{{ rupiah($p['biaya_booking'] ?? 0) }} (di luar harga kavling)</td></tr>
+        <tr><td>Pembatalan booking</td><td>Dipotong {{ rupiah($p['potongan_booking'] ?? 0) }} dari booking fee; reservasi dikembalikan penuh</td></tr>
+        <tr><td>DP</td><td>{{ $dp }}</td></tr>
+        <tr><td>Angsuran</td><td>Maksimal {{ $p['tenor_maksimal'] ?? '—' }} bulan</td></tr>
+        <tr><td>Harga kavling</td><td>Luas × harga/m² tahap aktif saat transaksi dibuat (lihat Pricelist)</td></tr>
     </tbody>
 </table>
 
-<p class="tk-sub">Alur Pembayaran Sederhana</p>
+<p class="tk-sub">Alur Transaksi</p>
 <ul>
-    <li>Calon konsumen memilih unit.</li>
-    <li>Sales cek status unit ke admin.</li>
-    <li>Jika perlu penahanan awal <span class="sym">→</span> Reservasi.</li>
-    <li>Jika konsumen siap lanjut <span class="sym">→</span> Booking.</li>
-    <li>Dokumen pemesanan disiapkan dan ditandatangani.</li>
-    <li>Skema pembayaran/angsuran disepakati.</li>
-    <li>PPJBS/PPJB final diproses sesuai dokumen proyek.</li>
-    <li>Pembayaran dan bukti transaksi diarsipkan.</li>
+    <li>Calon konsumen dicatat sebagai lead oleh agen, lalu menjadi prospek.</li>
+    <li>Unit dipilih dari kavling berstatus Tersedia; transaksi dibuat dan kavling ditahan {{ $p['batas_tahan_jam'] ?? '—' }} jam.</li>
+    <li>Reservasi dibayar <span class="sym">→</span> status Reservasi (Form Reservasi).</li>
+    <li>Booking fee dibayar <span class="sym">→</span> status Booking (Form Booking), lalu SPK dibuat.</li>
+    <li>DP / angsuran dibayar sesuai jadwal angsuran.</li>
+    <li>PPJB ditandatangani; pembayaran sampai lunas, lalu AJB.</li>
+    <li>Setiap pembayaran mendapat kwitansi resmi dari admin.</li>
 </ul>
-<p class="j">Penting: nominal, rekening pembayaran, dan kebijakan pembatalan harus mengikuti instruksi admin proyek terbaru. Jangan menerima pembayaran ke rekening pribadi tanpa otorisasi.</p>
-
-<p class="tk-sub" style="margin-top:16pt">ALUR PEMBELIAN KONSUMEN</p>
-<table class="grid">
-    <thead><tr><th style="width:12%">Tahap</th><th style="width:28%">Fokus</th><th>Output</th></tr></thead>
-    <tbody>
-        @foreach ([
-            ['Gali kebutuhan', 'Budget, ukuran, tujuan, waktu beli.'],
-            ['Presentasi', 'Tunjukkan lokasi, siteplan, unit, harga, dan status legal.'],
-            ['Pilih unit', 'Pastikan unit benar-benar tersedia.'],
-            ['Kunjungan', 'Ajak survey lokasi bila memungkinkan.'],
-            ['Reservasi/Booking', 'Gunakan formulir resmi.'],
-            ['SPK', 'Catat unit, harga, cara bayar, dan kesepakatan.'],
-            ['PPJBS/PPJB', 'Gunakan dokumen final yang telah disiapkan proyek.'],
-            ['Pembayaran', 'Catat setiap transaksi dan bukti.'],
-            ['Serah dokumen', 'Arsipkan dokumen konsumen dan berikan salinannya.'],
-        ] as [$fokus, $output])
-            <tr><td class="c">{{ $loop->iteration }}</td><td>{{ $fokus }}</td><td>{{ $output }}</td></tr>
-        @endforeach
-    </tbody>
-</table>
+<p class="j">Penting: nominal, rekening pembayaran, dan kebijakan pembatalan mengikuti ketentuan admin proyek. Jangan menerima pembayaran ke rekening pribadi tanpa otorisasi.</p>

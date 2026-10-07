@@ -19,9 +19,10 @@ class AuthController extends Controller
     public function masuk(Request $request)
     {
         $data = $request->validate([
-            'email'    => ['required', 'email'],
+            'email'    => ['required', 'string', 'max:255'],
             'password' => ['required', 'string'],
-        ], [], ['password' => 'kata sandi']);
+        ], [], ['email' => 'email atau nama pengguna', 'password' => 'kata sandi']);
+        $data['email'] = trim($data['email']);
 
         // Maksimal 5 percobaan gagal per menit per email + IP
         $kunci = Str::lower($data['email']) . '|' . $request->ip();
@@ -33,7 +34,7 @@ class AuthController extends Controller
 
         if (! Auth::attempt($data + ['aktif' => true], $request->boolean('ingat'))) {
             RateLimiter::hit($kunci);
-            throw ValidationException::withMessages(['email' => 'Email atau kata sandi salah, atau akun dinonaktifkan.']);
+            throw ValidationException::withMessages(['email' => 'Email/nama pengguna atau kata sandi salah, atau akun dinonaktifkan.']);
         }
 
         RateLimiter::clear($kunci);
@@ -72,13 +73,15 @@ class AuthController extends Controller
         $user = $request->user();
         $data = $request->validate([
             'name'             => ['required', 'string', 'max:255'],
-            'email'            => ['required', 'email', 'max:255', 'unique:users,email,' . $user->id],
+            // Akun agen boleh memakai nama pengguna (tanpa @) sebagai pengganti email
+            'email'            => ['required', 'string', 'max:255', str_contains((string) $request->input('email'), '@') ? 'email' : 'regex:/^[A-Za-z0-9._-]{3,}$/', 'unique:users,email,' . $user->id],
             'password_lama'    => ['nullable', 'required_with:password', 'current_password'],
             'password'         => ['nullable', 'confirmed', Password::min(8)],
         ], [
             'password_lama.current_password' => 'Kata sandi lama salah.',
             'password_lama.required_with'    => 'Masukkan kata sandi lama untuk mengganti kata sandi.',
-        ], ['name' => 'nama', 'password_lama' => 'kata sandi lama', 'password' => 'kata sandi baru']);
+            'email.regex'                    => 'Nama pengguna minimal 3 karakter (huruf, angka, titik, garis bawah, tanda hubung).',
+        ], ['name' => 'nama', 'email' => 'email atau nama pengguna', 'password_lama' => 'kata sandi lama', 'password' => 'kata sandi baru']);
 
         $user->fill(['name' => $data['name'], 'email' => $data['email']]);
         if (! empty($data['password'])) {

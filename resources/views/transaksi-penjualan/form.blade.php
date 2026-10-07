@@ -29,9 +29,9 @@
 
 @section('content')
 <x-page-header :title="$ubah ? 'Ubah Transaksi' : 'Transaksi Baru'"
-               :subtitle="$ubah ? $transaksi->kode_transaksi . ' · kavling & harga terkunci' : 'Harga dikunci saat disimpan.'"
+               :subtitle="$ubah ? $transaksi->kode_transaksi : null"
                :back="$ubah ? route('transaksi-penjualan.show', $transaksi) : route('transaksi-penjualan.index')"
-               :breadcrumbs="['Transaksi' => route('transaksi-penjualan.index'), ($ubah ? 'Ubah' : 'Baru') => null]"/>
+               :breadcrumbs="['Transaksi Penjualan' => route('transaksi-penjualan.index'), ($ubah ? 'Ubah' : 'Baru') => null]"/>
 
 <form method="POST" action="{{ $ubah ? route('transaksi-penjualan.update', $transaksi) : route('transaksi-penjualan.store') }}"
       x-data="transaksiForm(@js($awal), @js($kavlingList), @js($aturan), @js($jenisBayar))"
@@ -118,9 +118,15 @@
                     <x-field label="Tanggal Transaksi" name="tanggal" required>
                         <x-input type="date" name="tanggal" x-model="tanggal" :max="now()->toDateString()"/>
                     </x-field>
-                    <x-field label="Agen" name="agen_id">
-                        <x-select name="agen_id" :options="$agens" :value="$transaksi?->agen_id" placeholder="Tanpa agen"/>
-                    </x-field>
+                    @if (auth()->user()->isAdmin())
+                        <x-field label="Agen" name="agen_id">
+                            <x-select name="agen_id" :options="$agens" :value="$transaksi?->agen_id" placeholder="Tanpa agen"/>
+                        </x-field>
+                    @else
+                        <x-field label="Agen">
+                            <x-input name="_agen" :value="$agens->first()" readonly class="bg-slate-50"/>
+                        </x-field>
+                    @endif
                 </div>
 
                 <fieldset class="mt-5">
@@ -178,7 +184,7 @@
                             <x-input name="bayar_nama_penyetor" placeholder="Opsional"/>
                         </x-field>
                         <x-field label="Nama Bank" name="bayar_bank_penyetor">
-                            <x-input name="bayar_bank_penyetor" placeholder="Opsional"/>
+                            <x-select name="bayar_bank_penyetor" :options="\App\Support\Bank::pilihan()" placeholder="Pilih bank (opsional)"/>
                         </x-field>
                         <x-field label="No Rek. Penyetor" name="bayar_rekening_penyetor">
                             <x-input name="bayar_rekening_penyetor" inputmode="numeric" placeholder="Opsional"/>

@@ -17,20 +17,21 @@
     $tag = $href ? 'a' : 'div';
 @endphp
 <{{ $tag }} @if ($href) href="{{ $href }}" @endif
-    {{ $attributes->merge(['class' => "block min-w-0 rounded-kartu border p-4 shadow-kartu transition-colors duration-150 sm:p-5 {$t['card']}" . ($href ? ' hover:border-brand-300' : '')]) }}>
+    {{ $attributes->merge(['class' => "block min-w-0 rounded-kartu border px-4 py-3.5 shadow-kartu transition-colors duration-150 {$t['card']}" . ($href ? ' hover:border-brand-300' : '')]) }}>
     <div class="flex items-start justify-between gap-2">
-        <p class="text-xs font-medium {{ $t['label'] }}">{{ $label }}</p>
+        <p class="truncate text-xs font-medium {{ $t['label'] }}">{{ $label }}</p>
         @if ($icon)
             <span class="-mt-1 -mr-1 flex size-8 shrink-0 items-center justify-center rounded-lg {{ $t['icon'] }}"><x-icon :name="$icon" class="size-4"/></span>
         @endif
     </div>
-    <p class="mt-1 text-lg font-semibold tracking-tight tabular-nums sm:text-2xl {{ $t['value'] }}">
+    {{-- Nilai tidak pernah melebar keluar kartu: dipotong rapi, nilai lengkap di tooltip bawaan --}}
+    <p class="mt-1 truncate text-lg font-semibold tracking-tight tabular-nums xl:text-xl {{ $t['value'] }}" title="{{ $value }}">
         @if ($singkat !== null)
             <span class="sm:hidden">{{ $singkat }}</span><span class="hidden sm:inline">{{ $value }}</span>
         @else
-            <span class="break-words">{{ $value }}</span>
+            {{ $value }}
         @endif
     </p>
-    @if ($hint)<p class="mt-1 text-xs {{ $t['hint'] }}">{{ $hint }}</p>@endif
+    @if ($hint)<p class="mt-0.5 truncate text-xs {{ $t['hint'] }}" title="{{ $hint }}">{{ $hint }}</p>@endif
     {{ $slot }}
 </{{ $tag }}>

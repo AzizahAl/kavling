@@ -25,9 +25,10 @@
         maju(jenis, l) { this.aksi = { jenis, id: l.id, nama: l.nama, agen: l.agen_id }; this.$dispatch('open-modal', 'aksi') },
      }">
 
-<x-page-header title="Lead Harian" subtitle="Lead → Prospek → Closing" :breadcrumbs="['Marketing' => null, 'Lead Harian' => null]">
+@include('agen._navigasi')
+<x-page-header title="Lead Harian" subtitle="Lead → Prospek → Closing" :breadcrumbs="auth()->user()->isAdmin() ? ['Agen & Marketing' => route('agen.index'), 'Lead Harian' => null] : ['Marketing' => null, 'Lead Harian' => null]">
     <x-slot:actions>
-        <x-button variant="secondary" icon="chart" :href="route('lead.rekap')">Rekap</x-button>
+        @unless (auth()->user()->isAdmin())<x-button variant="secondary" icon="chart" :href="route('lead.rekap')">Rekap</x-button>@endunless
         <x-button icon="plus" x-on:click="tambah()" :disabled="$agens->isEmpty()">Input Lead</x-button>
     </x-slot:actions>
 </x-page-header>

@@ -80,9 +80,8 @@ class DashboardController extends Controller
             'stats'       => [
                 'harga_aktif'  => $harga->hargaAktif(),
                 'tahap'        => $harga->nomorTahapAktif(),
-                'jumlah_tahap' => (int) Pengaturan::get('jumlah_tahap', 1),
-                'menuju_naik'  => $harga->nomorTahapAktif() < (int) Pengaturan::get('jumlah_tahap', 1)
-                    ? $harga->nomorTahapAktif() * (int) Pengaturan::get('unit_per_kenaikan', 1) - $harga->jumlahTerjual() : null,
+                'jumlah_tahap' => $harga->daftarTahap()->count(),
+                'menuju_naik'  => $harga->menujuNaik(),
                 'nilai_jual'   => $nilaiJual,
                 'transaksi'    => (clone $aktif)->count(),
                 'uang_masuk'   => (float) Pembayaran::whereHas('transaksi', fn ($q) => $q->berjalan())->sum('nominal'),

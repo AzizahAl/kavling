@@ -31,14 +31,14 @@
 <div class="mb-5 grid grid-cols-1 gap-5 xl:grid-cols-3">
     <x-card title="Kelayakan Bagi Laba" class="xl:col-span-2">
         <div class="grid gap-4 sm:grid-cols-2">
-            @foreach ([['Tanah Lunas', $laba['tanah'], 'Dibayar ke pemilik lahan = total kesepakatan'], ['Legal & Infrastruktur', $laba['legal'], 'Alokasi ≥ anggaran RAB ' . implode(', ', $laba['legal']['kategori'])]] as [$judul, $s, $ket])
+            @foreach ([['Tanah Lunas', $laba['tanah'], 'Pengeluaran kas kategori Tanah = anggaran RAB Tanah'], ['Legal & Infrastruktur', $laba['legal'], 'Alokasi ≥ anggaran RAB ' . implode(', ', $laba['legal']['kategori'])]] as [$judul, $s, $ket])
                 @php $pr = ($s['target'] ?? 0) > 0 ? min(100, $s['alokasi'] / $s['target'] * 100) : 0; @endphp
                 <div @class(['rounded-kontrol border p-4', 'border-green-200 bg-green-50/50' => $s['terpenuhi'], 'border-slate-200' => ! $s['terpenuhi']])>
                     <div class="flex items-center justify-between gap-2">
                         <p class="font-medium text-slate-900">{{ $judul }}</p>
                         <x-badge :status="$s['terpenuhi'] ? 'selesai' : 'belum'" :label="$s['terpenuhi'] ? 'Terpenuhi' : 'Belum'"/>
                     </div>
-                    <p class="mt-0.5 text-xs text-slate-500">{{ $ket }}@if ($judul === 'Tanah Lunas') · <a href="{{ route('kewajiban-tanah.index') }}" class="tautan">Kewajiban Tanah</a>@endif</p>
+                    <p class="mt-0.5 text-xs text-slate-500">{{ $ket }}@if ($judul === 'Tanah Lunas') · <a href="{{ route('rab.index', ['periode' => 'semua', 'kategori' => 'Tanah']) }}" class="tautan">RAB Tanah</a>@endif</p>
                     @if ($s['catatan'])
                         <p class="mt-3 flex gap-1.5 text-xs text-amber-700"><x-icon name="warning" class="size-4"/>{{ $s['catatan'] }}</p>
                     @else

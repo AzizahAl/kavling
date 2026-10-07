@@ -168,7 +168,7 @@ class AlokasiService
             'laba'           => $laba,
             'laba_tersedia'  => $layak ? $laba : 0,
             'tanah'          => ['target' => $tanah['total'], 'alokasi' => $tanah['terbayar'], 'sisa' => $tanah['sisa'], 'terpenuhi' => $tanah['lunas'],
-                                 'catatan' => $tanah['total'] === null ? 'Total kesepakatan kewajiban tanah belum ditetapkan.' : null],
+                                 'catatan' => $tanah['total'] === null ? 'Anggaran RAB kategori Tanah belum diisi.' : null],
             'legal'          => ['target' => $targetLegal, 'alokasi' => $alokasiLegal, 'terpenuhi' => $legalCukup, 'kategori' => $kategoriLegal,
                                  'catatan' => $targetLegal <= 0 ? 'Anggaran RAB kategori ' . implode(', ', $kategoriLegal) . ' belum diisi.' : null],
             'layak'          => $layak,

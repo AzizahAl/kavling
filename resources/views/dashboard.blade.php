@@ -67,7 +67,7 @@
         </div>
     </x-card>
 
-    <x-card title="Penjualan 12 Bulan" subtitle="Nilai jual transaksi aktif" class="xl:col-span-2">
+    <x-card title="Penjualan 12 Bulan" class="xl:col-span-2">
         <div class="h-64"><canvas id="grafik-jual" role="img" aria-label="Grafik penjualan per bulan"></canvas></div>
     </x-card>
 </div>
@@ -134,7 +134,7 @@
 </div>
 
 <div class="mb-5 grid grid-cols-1 gap-5 xl:grid-cols-3">
-    <x-card title="Arus Kas" subtitle="Masuk vs keluar per bulan" class="xl:col-span-2">
+    <x-card title="Arus Kas" class="xl:col-span-2">
         <div class="h-64"><canvas id="grafik-kas" role="img" aria-label="Grafik arus kas per bulan"></canvas></div>
     </x-card>
 
@@ -151,7 +151,7 @@
                     <div class="flex justify-between gap-2"><dt class="text-slate-600">{{ $p->label }} <span class="text-xs text-slate-400">{{ persen($p->persen, false) }}</span></dt><dd @class(['tabular-nums', 'text-red-600' => $p->saldo < 0])>{{ rupiah($p->saldo) }}</dd></div>
                 @endforeach
             </dl>
-            <a href="{{ route('kewajiban-tanah.index') }}" class="-mx-1 block rounded-kontrol border-t border-slate-100 px-1 pt-4 hover:bg-slate-50">
+            <a href="{{ route('rab.index', ['periode' => 'semua', 'kategori' => 'Tanah']) }}" class="-mx-1 block rounded-kontrol border-t border-slate-100 px-1 pt-4 hover:bg-slate-50">
                 <div class="flex justify-between gap-2"><span class="text-slate-600">Kewajiban tanah</span>
                     <span class="font-semibold tabular-nums">{{ $tanah['total'] === null ? 'Total belum ditetapkan' : ($tanah['lunas'] ? 'Lunas' : 'Sisa ' . rupiah_singkat($tanah['sisa'])) }}</span></div>
                 @if ($tanah['total'])
@@ -169,7 +169,7 @@
 </div>
 
 @if ($menunggu->isNotEmpty())
-    <x-card class="mb-5" title="Menunggu Pembayaran Reservasi" subtitle="Kavling ditahan sementara; belum dihitung sebagai penjualan." :padding="false">
+    <x-card class="mb-5" title="Menunggu Pembayaran Reservasi" :padding="false">
         <x-slot:actions><a href="{{ route('transaksi-penjualan.index', ['status' => 'menunggu']) }}" class="tautan text-sm">Semua</a></x-slot:actions>
         <ul class="divide-y divide-slate-100">
             @foreach ($menunggu as $m)

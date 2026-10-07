@@ -9,7 +9,8 @@
 @endphp
 
 @section('content')
-<x-page-header title="Rekap Lead" :subtitle="$judul" :back="route('lead.index')" :breadcrumbs="['Lead Harian' => route('lead.index'), 'Rekap' => null]"/>
+@include('agen._navigasi')
+<x-page-header title="Rekap Lead" :subtitle="$judul" :back="auth()->user()->isAdmin() ? null : route('lead.index')" :breadcrumbs="auth()->user()->isAdmin() ? ['Agen & Marketing' => route('agen.index'), 'Rekap Lead' => null] : ['Lead Harian' => route('lead.index'), 'Rekap' => null]"/>
 
 <x-tabs :items="$tabs"/>
 
@@ -39,7 +40,7 @@
 </div>
 
 <div class="grid grid-cols-1 gap-5 xl:grid-cols-5">
-    <x-card title="Per Agen" subtitle="Tiap tahap dihitung pada tanggal terjadinya." :padding="false" :class="$deret ? 'xl:col-span-3' : 'xl:col-span-5'">
+    <x-card title="Per Agen" :padding="false" :class="$deret ? 'xl:col-span-3' : 'xl:col-span-5'">
         @if ($rekap->isEmpty())
             <x-empty-state title="Belum ada agen"/>
         @else

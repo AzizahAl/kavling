@@ -1,6 +1,6 @@
 {{--
     Kerangka cetak formulir resmi (tampilan layar, cetak browser, dan PDF dompdf).
-    $halaman: daftar [view, gaya] — view di formulir/halaman, gaya = calibri | times | arial (mengikuti dokumen asli).
+    $halaman: daftar [view, gaya] — view di formulir/halaman. Semua dokumen dicetak seragam Times New Roman 12pt, paragraf rata kiri-kanan.
     $d: data isian (kosong = formulir kosong untuk diisi tangan).
 --}}
 @php
@@ -96,8 +96,17 @@
         body { background: #fff; }
         .paper { width: auto !important; min-height: 0 !important; margin: 0; padding: 0; box-shadow: none; page-break-after: always; }
         .paper.akhir { page-break-after: auto; }
-        .gaya-calibri { font-family: Helvetica, sans-serif; font-size: 10.5pt; }
         @endif
+
+        /* ---------- Seragam untuk semua dokumen cetak: Times New Roman 12pt, paragraf rata kiri-kanan ---------- */
+        .paper, .paper * { font-family: 'Times New Roman', Times, serif !important; font-size: 12pt !important; }
+        .paper .sym { font-family: 'DejaVu Sans', 'Segoe UI Symbol', sans-serif !important; }
+        .paper { line-height: 1.45; }
+        .paper p, .paper li { text-align: justify; }
+        .paper td p, .paper th p { text-align: inherit; }
+        .paper td li, .paper th li { text-align: justify; }
+        .paper .c, .paper p.c, .paper .tk-judul, .paper .ppjb-judul, .paper .ppjb-sub, .paper .ppjb-bab, .paper .ppjb-pasal, .paper .lamp-kepala .judul { text-align: center; }
+        .paper .r, .paper p.r { text-align: right; }
     </style>
 </head>
 <body class="kertas-{{ $kertas }}">
